@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "project-monitor-sdk"
+version = "0.1.0"
+description = "Official SDK for the Project Monitor AI Observability Platform"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+keywords = ["monitoring", "observability", "logging", "apm"]
+dependencies = [
+    "requests>=2.28",
+]
+
+[project.optional-dependencies]
+asgi = []         # MonitorASGIMiddleware ships in the package; no extra deps needed
+flask = ["flask>=2.0"]
+
+[tool.setuptools.packages.find]
+where = ["src"]

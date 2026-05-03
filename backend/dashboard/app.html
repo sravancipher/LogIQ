@@ -1,0 +1,812 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Project Monitor</title>
+  <style>
+    /* ── reset & tokens ───────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg:        #0f1117;
+      --surface:   #1a1d27;
+      --surface2:  #22263a;
+      --border:    #2e3250;
+      --text:      #e8eaf6;
+      --muted:     #7986cb;
+      --accent:    #5c6bc0;
+      --accent-h:  #7986cb;
+      --green:     #66bb6a;
+      --red:       #ef5350;
+      --yellow:    #ffa726;
+      --blue:      #42a5f5;
+      --radius:    10px;
+      --font:      "Inter", "Segoe UI", sans-serif;
+    }
+    body { font-family: var(--font); background: var(--bg); color: var(--text); min-height: 100vh; display: flex; }
+
+    /* ── sidebar ──────────────────────────────────────────────── */
+    #sidebar {
+      width: 220px; min-height: 100vh; background: var(--surface);
+      border-right: 1px solid var(--border); display: flex; flex-direction: column;
+      padding: 20px 0; position: fixed; top: 0; left: 0;
+    }
+    #sidebar .brand { font-size: 17px; font-weight: 700; color: var(--text); padding: 0 20px 20px; letter-spacing: .3px; }
+    #sidebar .brand span { color: var(--accent-h); }
+    #sidebar nav a {
+      display: flex; align-items: center; gap: 10px; padding: 10px 20px;
+      color: var(--muted); text-decoration: none; font-size: 14px; border-left: 3px solid transparent;
+      transition: all .15s;
+    }
+    #sidebar nav a:hover, #sidebar nav a.active {
+      color: var(--text); background: var(--surface2); border-left-color: var(--accent-h);
+    }
+    #sidebar .api-key-pill {
+      margin: auto 16px 0; padding: 10px 12px; background: var(--surface2);
+      border: 1px solid var(--border); border-radius: var(--radius); font-size: 12px;
+    }
+    #sidebar .api-key-pill label { color: var(--muted); display: block; margin-bottom: 4px; }
+    #sidebar .api-key-pill input {
+      width: 100%; background: transparent; border: none; color: var(--text); font-size: 12px;
+      outline: none; cursor: pointer;
+    }
+
+    /* ── main ─────────────────────────────────────────────────── */
+    #main { margin-left: 220px; flex: 1; padding: 28px 32px; max-width: 1100px; }
+    .page { display: none; }
+    .page.active { display: block; }
+    h2 { font-size: 20px; font-weight: 600; margin-bottom: 20px; }
+    h3 { font-size: 15px; font-weight: 600; margin-bottom: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
+
+    /* ── cards / grid ─────────────────────────────────────────── */
+    .card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 20px;
+    }
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    .grid4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+
+    /* ── stat pill ────────────────────────────────────────────── */
+    .stat-val { font-size: 30px; font-weight: 700; }
+    .stat-lbl { font-size: 13px; color: var(--muted); margin-top: 4px; }
+    .green { color: var(--green); }
+    .red   { color: var(--red); }
+    .yellow{ color: var(--yellow); }
+    .blue  { color: var(--blue); }
+
+    /* ── forms ────────────────────────────────────────────────── */
+    .form-row { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+    .form-row label { font-size: 13px; color: var(--muted); }
+    .form-row input, .form-row select, .form-row textarea {
+      background: var(--surface2); border: 1px solid var(--border); border-radius: 8px;
+      color: var(--text); padding: 9px 12px; font-size: 14px; outline: none;
+      transition: border-color .15s;
+    }
+    .form-row input:focus, .form-row select:focus, .form-row textarea:focus { border-color: var(--accent-h); }
+    .form-row select option { background: var(--surface2); }
+
+    /* ── buttons ──────────────────────────────────────────────── */
+    .btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 9px 18px; border-radius: 8px; font-size: 14px; font-weight: 500;
+      cursor: pointer; border: none; transition: opacity .15s;
+    }
+    .btn:hover { opacity: .85; }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-danger  { background: var(--red);    color: #fff; }
+    .btn-ghost   { background: var(--surface2); border: 1px solid var(--border); color: var(--text); }
+    .btn-sm      { padding: 6px 12px; font-size: 13px; }
+
+    /* ── table ────────────────────────────────────────────────── */
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th { text-align: left; color: var(--muted); padding: 8px 12px; border-bottom: 1px solid var(--border); font-weight: 500; }
+    td { padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    tr:last-child td { border-bottom: none; }
+
+    /* ── badges ───────────────────────────────────────────────── */
+    .badge {
+      display: inline-block; padding: 2px 8px; border-radius: 20px;
+      font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .4px;
+    }
+    .badge-error  { background: rgba(239,83,80,.15);  color: var(--red); }
+    .badge-warn   { background: rgba(255,167,38,.15); color: var(--yellow); }
+    .badge-info   { background: rgba(66,165,245,.15); color: var(--blue); }
+    .badge-debug  { background: rgba(122,132,202,.15);color: var(--muted); }
+    .badge-active { background: rgba(102,187,106,.15);color: var(--green); }
+    .badge-inactive{background: rgba(239,83,80,.15);  color: var(--red); }
+
+    /* ── misc ─────────────────────────────────────────────────── */
+    .alert-box {
+      padding: 12px 16px; border-radius: 8px; font-size: 13px; margin-bottom: 16px; display: none;
+    }
+    .alert-box.show { display: block; }
+    .alert-box.success { background: rgba(102,187,106,.15); border: 1px solid var(--green); color: var(--green); }
+    .alert-box.error   { background: rgba(239,83,80,.15);   border: 1px solid var(--red);   color: var(--red); }
+    .alert-box.info    { background: rgba(66,165,245,.15);  border: 1px solid var(--blue);  color: var(--blue); }
+    pre.code-box {
+      background: var(--surface2); border: 1px solid var(--border); border-radius: 8px;
+      padding: 14px; font-size: 12px; overflow-x: auto; white-space: pre-wrap; color: var(--blue);
+    }
+    .copy-btn { float: right; font-size: 11px; }
+    .tag { background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; padding: 2px 8px; font-size: 12px; color: var(--muted); }
+    .mt-16 { margin-top: 16px; }
+    .mb-16 { margin-bottom: 16px; }
+    .gap-8 { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .divider { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
+    .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--muted); border-top-color: var(--accent-h); border-radius: 50%; animation: spin .6s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .empty-state { text-align: center; color: var(--muted); padding: 40px; }
+    .msg-cell { max-width: 360px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .pagination { display: flex; gap: 8px; align-items: center; margin-top: 16px; font-size: 13px; }
+    #log-cursor-stack { display: none; }
+  </style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════ SIDEBAR ═══════════════════════════════ -->
+<aside id="sidebar">
+  <div class="brand">Project <span>Monitor</span></div>
+  <nav>
+    <a href="#" class="active" data-page="page-home">🏠 Overview</a>
+    <a href="#" data-page="page-onboard">🚀 New Project</a>
+    <a href="#" data-page="page-logs">📋 Logs</a>
+    <a href="#" data-page="page-insights">🧠 Insights</a>
+    <a href="#" data-page="page-integrations">☁️ Cloud Integrations</a>
+    <a href="#" data-page="page-alerts">🔔 Alerts</a>
+  </nav>
+  <div class="api-key-pill">
+    <label>Active API Key</label>
+    <input id="global-key" type="text" placeholder="Paste pm_... key" autocomplete="off" spellcheck="false" />
+  </div>
+</aside>
+
+<!-- ═══════════════════════════════ MAIN ══════════════════════════════════ -->
+<main id="main">
+
+  <!-- ── OVERVIEW ──────────────────────────────────────────────────────── -->
+  <div id="page-home" class="page active">
+    <h2>Overview</h2>
+    <div id="home-alert" class="alert-box info show">Enter your API key in the sidebar to load live data.</div>
+    <div class="grid4 mb-16">
+      <div class="card"><div class="stat-val blue" id="ov-total">—</div><div class="stat-lbl">Total Logs (1 h)</div></div>
+      <div class="card"><div class="stat-val red"  id="ov-errors">—</div><div class="stat-lbl">Errors (1 h)</div></div>
+      <div class="card"><div class="stat-val green" id="ov-service">—</div><div class="stat-lbl">Top Service</div></div>
+      <div class="card"><div class="stat-val yellow" id="ov-errtype">—</div><div class="stat-lbl">Top Error Type</div></div>
+    </div>
+    <div class="card">
+      <h3>Root Cause Summary</h3>
+      <p id="ov-rc" style="color:var(--muted);font-size:14px">Load insights to see AI root-cause analysis.</p>
+      <p id="ov-sugg" style="margin-top:8px;font-size:13px;"></p>
+      <span id="ov-conf" class="tag mt-16"></span>
+    </div>
+    <div class="card mt-16">
+      <h3>Recent Errors</h3>
+      <div id="ov-recent-wrap"><div class="empty-state">No data yet.</div></div>
+    </div>
+  </div>
+
+  <!-- ── NEW PROJECT ONBOARDING ─────────────────────────────────────────── -->
+  <div id="page-onboard" class="page">
+    <h2>Create a New Project</h2>
+    <div class="grid2">
+      <div>
+        <div class="card">
+          <div id="ob-alert" class="alert-box"></div>
+          <div class="form-row">
+            <label>Project Name *</label>
+            <input id="ob-name" type="text" placeholder="e.g. my-saas-backend" />
+          </div>
+          <div class="form-row">
+            <label>Description</label>
+            <input id="ob-desc" type="text" placeholder="Optional description" />
+          </div>
+          <button class="btn btn-primary" onclick="createProject()">🚀 Create Project</button>
+        </div>
+
+        <div id="ob-result" class="card mt-16" style="display:none">
+          <h3>✅ Project Created</h3>
+          <p style="font-size:13px;color:var(--muted);margin-bottom:12px">Save your API key — it will only be shown once.</p>
+          <div class="form-row">
+            <label>Project ID</label>
+            <input id="ob-proj-id" type="text" readonly />
+          </div>
+          <div class="form-row">
+            <label>API Key</label>
+            <input id="ob-api-key" type="text" readonly />
+          </div>
+          <div class="gap-8 mt-16">
+            <button class="btn btn-primary btn-sm" onclick="copyApiKey()">📋 Copy API Key</button>
+            <button class="btn btn-ghost btn-sm" onclick="useThisKey()">Use this key in sidebar</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>What happens next</h3>
+        <ol style="font-size:13px;color:var(--muted);line-height:2;padding-left:18px">
+          <li>Copy your API Key (shown once)</li>
+          <li>Add it to the sidebar — all pages use it automatically</li>
+          <li>Send logs via <code style="color:var(--blue)">POST /api/v1/logs</code></li>
+          <li>Connect AWS / Azure on the <strong style="color:var(--text)">Cloud Integrations</strong> page</li>
+          <li>View AI insights and set up alerts</li>
+        </ol>
+        <hr class="divider" />
+        <h3>Quick Send Test Log</h3>
+        <p style="font-size:13px;color:var(--muted);margin-bottom:10px">After creating, click below to send a sample error log.</p>
+        <button class="btn btn-ghost btn-sm" onclick="sendTestLog()">⚡ Send Test Log</button>
+        <div id="ob-test-result" style="margin-top:10px;font-size:13px;color:var(--green)"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── LOGS VIEWER ────────────────────────────────────────────────────── -->
+  <div id="page-logs" class="page">
+    <h2>Logs</h2>
+    <div class="card mb-16">
+      <div class="gap-8">
+        <select id="log-level" style="width:120px">
+          <option value="">All Levels</option>
+          <option value="ERROR">ERROR</option>
+          <option value="WARN">WARN</option>
+          <option value="INFO">INFO</option>
+          <option value="DEBUG">DEBUG</option>
+        </select>
+        <input id="log-service" type="text" placeholder="Service name filter" style="width:200px" />
+        <input id="log-start" type="datetime-local" style="width:200px" />
+        <input id="log-end" type="datetime-local" style="width:200px" />
+        <button class="btn btn-primary btn-sm" onclick="loadLogs(true)">🔍 Search</button>
+        <button class="btn btn-ghost btn-sm" onclick="clearLogFilters()">✕ Clear</button>
+      </div>
+    </div>
+    <div class="card">
+      <div id="log-table-wrap"><div class="empty-state">Enter your API key and click Search.</div></div>
+      <div class="pagination">
+        <button id="log-prev-btn" class="btn btn-ghost btn-sm" onclick="logPrev()" disabled>◀ Prev</button>
+        <span id="log-page-info" style="color:var(--muted)">Page 1</span>
+        <button id="log-next-btn" class="btn btn-ghost btn-sm" onclick="logNext()" disabled>Next ▶</button>
+        <span id="log-loading" style="display:none"><span class="spinner"></span></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── INSIGHTS ───────────────────────────────────────────────────────── -->
+  <div id="page-insights" class="page">
+    <h2>AI Insights</h2>
+    <div class="card mb-16">
+      <div class="gap-8">
+        <label style="font-size:13px;color:var(--muted)">Lookback window:</label>
+        <select id="ins-window" style="width:160px">
+          <option value="15">Last 15 min</option>
+          <option value="30">Last 30 min</option>
+          <option value="60" selected>Last 1 hour</option>
+          <option value="360">Last 6 hours</option>
+          <option value="1440">Last 24 hours</option>
+        </select>
+        <button class="btn btn-primary btn-sm" onclick="loadInsights()">🧠 Analyse</button>
+        <span id="ins-loading" style="display:none"><span class="spinner"></span></span>
+      </div>
+    </div>
+    <div id="ins-result" style="display:none">
+      <div class="grid4 mb-16">
+        <div class="card"><div class="stat-val blue"  id="ins-total">—</div><div class="stat-lbl">Total Logs</div></div>
+        <div class="card"><div class="stat-val red"   id="ins-errors">—</div><div class="stat-lbl">Error Logs</div></div>
+        <div class="card"><div class="stat-val green" id="ins-svc">—</div><div class="stat-lbl">Top Service</div></div>
+        <div class="card"><div class="stat-val yellow"id="ins-errtype">—</div><div class="stat-lbl">Top Error Type</div></div>
+      </div>
+      <div class="grid2">
+        <div class="card">
+          <h3>Root Cause</h3>
+          <p id="ins-rc" style="font-size:14px;line-height:1.7;"></p>
+          <div class="gap-8 mt-16">
+            <span class="tag">Confidence: <span id="ins-conf"></span></span>
+          </div>
+        </div>
+        <div class="card">
+          <h3>Suggestion</h3>
+          <p id="ins-sugg" style="font-size:14px;line-height:1.7;color:var(--muted)"></p>
+        </div>
+      </div>
+    </div>
+    <div id="ins-empty" class="empty-state">Select a window and click Analyse.</div>
+  </div>
+
+  <!-- ── CLOUD INTEGRATIONS ──────────────────────────────────────────────── -->
+  <div id="page-integrations" class="page">
+    <h2>Cloud Integrations</h2>
+    <div class="grid2">
+      <div class="card">
+        <h3>Connect a Cloud Provider</h3>
+        <div id="int-alert" class="alert-box"></div>
+        <div class="form-row">
+          <label>Integration Name *</label>
+          <input id="int-name" type="text" placeholder="e.g. prod-aws-us-east-1" />
+        </div>
+        <div class="form-row">
+          <label>Cloud Provider *</label>
+          <select id="int-provider">
+            <option value="aws">AWS</option>
+            <option value="azure">Azure</option>
+            <option value="gcp">GCP</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <label>Service *</label>
+          <select id="int-service"></select>
+          <p style="font-size:12px;color:var(--muted);margin-top:8px">
+            Service selection appends a source hint in the webhook URL for explicit parser routing.
+          </p>
+        </div>
+        <button class="btn btn-primary" onclick="createIntegration()">⚡ Connect</button>
+      </div>
+
+      <div class="card" id="int-setup-guide">
+        <h3>Setup Guide</h3>
+        <div id="int-guide-aws">
+          <ol style="font-size:13px;color:var(--muted);line-height:2.1;padding-left:18px">
+            <li>Go to <strong style="color:var(--text)">AWS SNS</strong> → Create Topic (Standard)</li>
+            <li>Add an <strong style="color:var(--text)">HTTP/S Subscription</strong></li>
+            <li>Paste the <strong style="color:var(--text)">Webhook URL</strong> shown after connecting</li>
+            <li>Your app auto-confirms the subscription</li>
+            <li>Route AWS services (CloudWatch, CloudTrail, GuardDuty, RDS, Lambda, Security Hub, EventBridge) to SNS/EventBridge</li>
+            <li>Use the generated URL as the webhook target for selected AWS events</li>
+          </ol>
+        </div>
+        <div id="int-guide-azure" style="display:none">
+          <ol style="font-size:13px;color:var(--muted);line-height:2.1;padding-left:18px">
+            <li>Go to <strong style="color:var(--text)">Azure Monitor</strong> → Action Groups</li>
+            <li>Add a <strong style="color:var(--text)">Webhook</strong> action</li>
+            <li>Paste the <strong style="color:var(--text)">Webhook URL (with ?token=)</strong> shown after connecting</li>
+            <li>Attach Action Group/Event Grid for Monitor Alerts, Activity Log, App Insights, Service Health, Defender, AKS</li>
+            <li>Logs flow in automatically when alerts/events fire</li>
+          </ol>
+        </div>
+        <div id="int-guide-gcp" style="display:none">
+          <ol style="font-size:13px;color:var(--muted);line-height:2.1;padding-left:18px">
+            <li>Create a GCP alerting notification channel or Pub/Sub + push webhook pipeline</li>
+            <li>Paste the generated <strong style="color:var(--text)">Webhook URL (with token and source)</strong> as the target</li>
+            <li>Connect Cloud Logging, Cloud Monitoring, and Security Command Center exports</li>
+            <li>Logs and incidents flow into the platform for analysis</li>
+          </ol>
+        </div>
+      </div>
+    </div>
+
+    <div id="int-created-box" class="card mt-16" style="display:none">
+      <h3>✅ Integration Created — configure your cloud with these details</h3>
+      <div class="grid2 mt-16">
+        <div class="form-row">
+          <label>Webhook URL (paste into AWS SNS / Azure)</label>
+          <div class="gap-8">
+            <input id="int-wh-url" type="text" readonly style="flex:1" />
+            <button class="btn btn-ghost btn-sm" onclick="copyField('int-wh-url')">📋</button>
+          </div>
+        </div>
+        <div class="form-row">
+          <label>Token (already included in URL above)</label>
+          <input id="int-wh-token" type="text" readonly />
+        </div>
+      </div>
+    </div>
+
+    <div class="card mt-16">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+        <h3 style="margin:0">Active Integrations</h3>
+        <button class="btn btn-ghost btn-sm" onclick="loadIntegrations()">↻ Refresh</button>
+      </div>
+      <div id="int-table-wrap"><div class="empty-state">No integrations yet.</div></div>
+    </div>
+  </div>
+
+  <!-- ── ALERTS ──────────────────────────────────────────────────────────── -->
+  <div id="page-alerts" class="page">
+    <h2>Alerts</h2>
+    <div class="grid2">
+      <div class="card">
+        <h3>Send a Test Alert</h3>
+        <p style="font-size:13px;color:var(--muted);margin-bottom:16px">
+          Verify your Slack / Teams / email settings are working. Configure webhook URLs and SMTP in your server <code>.env</code> file.
+        </p>
+        <div id="al-alert" class="alert-box"></div>
+        <div class="form-row">
+          <label>Title *</label>
+          <input id="al-title" type="text" placeholder="e.g. Payment service timeout spike" value="Test Alert from Dashboard" />
+        </div>
+        <div class="form-row">
+          <label>Message *</label>
+          <textarea id="al-msg" rows="3" placeholder="Alert message body">Manually triggered test alert to verify channel delivery.</textarea>
+        </div>
+        <div class="form-row">
+          <label>Severity</label>
+          <select id="al-sev">
+            <option value="LOW">LOW</option>
+            <option value="MEDIUM" selected>MEDIUM</option>
+            <option value="HIGH">HIGH</option>
+            <option value="CRITICAL">CRITICAL</option>
+          </select>
+        </div>
+        <button class="btn btn-primary" onclick="sendAlert()">🔔 Send Test Alert</button>
+      </div>
+
+      <div class="card" id="al-result-card" style="display:none">
+        <h3>Delivery Results</h3>
+        <table>
+          <thead><tr><th>Channel</th><th>Status</th></tr></thead>
+          <tbody>
+            <tr><td>Slack</td><td><span id="al-slack"></span></td></tr>
+            <tr><td>Microsoft Teams</td><td><span id="al-teams"></span></td></tr>
+            <tr><td>Email (SMTP)</td><td><span id="al-email"></span></td></tr>
+          </tbody>
+        </table>
+        <hr class="divider" />
+        <h3>Configure in .env</h3>
+        <pre class="code-box">SLACK_WEBHOOK_URL=https://hooks.slack.com/services/...
+TEAMS_WEBHOOK_URL=https://outlook.office.com/webhook/...
+ALERT_EMAIL_FROM=alerts@yourcompany.com
+ALERT_EMAIL_TO=oncall@yourcompany.com
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USERNAME=...
+SMTP_PASSWORD=...</pre>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════
+// Utilities
+// ═══════════════════════════════════════════════════════════════════════
+const API = '';  // same origin
+let apiKey = '';
+
+function getKey() {
+  const k = document.getElementById('global-key').value.trim();
+  apiKey = k;
+  return k;
+}
+
+async function apiFetch(path, opts = {}) {
+  const key = getKey();
+  const headers = { 'Content-Type': 'application/json', ...(opts.headers || {}) };
+  if (key) headers['X-API-Key'] = key;
+  const res = await fetch(API + path, { ...opts, headers });
+  const body = await res.json().catch(() => ({}));
+  return { ok: res.ok, status: res.status, body };
+}
+
+function showAlert(id, msg, type = 'info') {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.textContent = msg;
+  el.className = `alert-box show ${type}`;
+}
+function hideAlert(id) {
+  const el = document.getElementById(id);
+  if (el) el.className = 'alert-box';
+}
+
+function badgeLevel(level = '') {
+  const map = { ERROR: 'badge-error', WARN: 'badge-warn', INFO: 'badge-info', DEBUG: 'badge-debug' };
+  return `<span class="badge ${map[level.toUpperCase()] || 'badge-info'}">${level}</span>`;
+}
+function badgeStatus(active) {
+  return active
+    ? '<span class="badge badge-active">active</span>'
+    : '<span class="badge badge-inactive">inactive</span>';
+}
+function tsShort(ts) {
+  if (!ts) return '—';
+  return new Date(ts).toLocaleString();
+}
+function copyField(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  navigator.clipboard.writeText(el.value).then(() => alert('Copied!'));
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Navigation
+// ═══════════════════════════════════════════════════════════════════════
+document.querySelectorAll('#sidebar nav a').forEach(a => {
+  a.addEventListener('click', e => {
+    e.preventDefault();
+    document.querySelectorAll('#sidebar nav a').forEach(x => x.classList.remove('active'));
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    a.classList.add('active');
+    document.getElementById(a.dataset.page).classList.add('active');
+    if (a.dataset.page === 'page-home') loadOverview();
+    if (a.dataset.page === 'page-logs') loadLogs(true);
+    if (a.dataset.page === 'page-integrations') loadIntegrations();
+  });
+});
+
+// Update guide when provider changes
+document.getElementById('int-provider').addEventListener('change', function () {
+  updateIntegrationProviderUI(this.value);
+});
+
+const INTEGRATION_SERVICES = {
+  aws: [
+    { value: 'cloudwatch', label: 'CloudWatch (Alarms / Logs)' },
+    { value: 'cloudtrail', label: 'CloudTrail' },
+    { value: 'guardduty', label: 'GuardDuty' },
+    { value: 'rds', label: 'RDS Events' },
+    { value: 'lambda', label: 'Lambda Events' },
+    { value: 'security_hub', label: 'Security Hub' },
+    { value: 'eventbridge', label: 'EventBridge Events' },
+  ],
+  azure: [
+    { value: 'azure_monitor', label: 'Monitor Alerts (Action Group)' },
+    { value: 'activity_log', label: 'Activity Log' },
+    { value: 'app_insights', label: 'Application Insights' },
+    { value: 'service_health', label: 'Service Health' },
+    { value: 'defender', label: 'Defender for Cloud' },
+    { value: 'aks', label: 'AKS Events' },
+    { value: 'event_grid', label: 'Event Grid' },
+  ],
+  gcp: [
+    { value: 'gcp_logging', label: 'Cloud Logging' },
+    { value: 'gcp_monitoring', label: 'Cloud Monitoring' },
+    { value: 'security_command_center', label: 'Security Command Center' },
+  ],
+};
+
+function updateIntegrationProviderUI(provider) {
+  document.getElementById('int-guide-aws').style.display = provider === 'aws' ? '' : 'none';
+  document.getElementById('int-guide-azure').style.display = provider === 'azure' ? '' : 'none';
+  document.getElementById('int-guide-gcp').style.display = provider === 'gcp' ? '' : 'none';
+
+  const serviceSelect = document.getElementById('int-service');
+  const services = INTEGRATION_SERVICES[provider] || [];
+  serviceSelect.innerHTML = services
+    .map(s => `<option value="${s.value}">${s.label}</option>`)
+    .join('');
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Overview
+// ═══════════════════════════════════════════════════════════════════════
+async function loadOverview() {
+  if (!getKey()) { showAlert('home-alert', 'Enter your API key in the sidebar.', 'info'); return; }
+  hideAlert('home-alert');
+  const { ok, body } = await apiFetch('/api/v1/insights?lookback_minutes=60');
+  if (!ok) { showAlert('home-alert', body.detail || 'Failed to load insights.', 'error'); return; }
+
+  document.getElementById('ov-total').textContent   = body.total_logs ?? '—';
+  document.getElementById('ov-errors').textContent  = body.error_logs ?? '—';
+  document.getElementById('ov-service').textContent = body.top_service || '—';
+  document.getElementById('ov-errtype').textContent = body.top_error_type || '—';
+  document.getElementById('ov-rc').textContent      = body.root_cause || '—';
+  document.getElementById('ov-sugg').textContent    = body.suggestion || '';
+  document.getElementById('ov-conf').textContent    = body.confidence != null
+    ? `Confidence: ${(body.confidence * 100).toFixed(0)}%` : '';
+
+  // recent errors table
+  const lr = await apiFetch('/api/v1/logs?level=ERROR&limit=5');
+  const wrap = document.getElementById('ov-recent-wrap');
+  if (!lr.ok || !lr.body.items?.length) {
+    wrap.innerHTML = '<div class="empty-state">No recent errors.</div>'; return;
+  }
+  wrap.innerHTML = renderLogTable(lr.body.items);
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Project creation
+// ═══════════════════════════════════════════════════════════════════════
+async function createProject() {
+  const name = document.getElementById('ob-name').value.trim();
+  const desc = document.getElementById('ob-desc').value.trim();
+  if (!name) { showAlert('ob-alert', 'Project name is required.', 'error'); return; }
+  hideAlert('ob-alert');
+  const { ok, body } = await apiFetch('/api/v1/projects', {
+    method: 'POST', body: JSON.stringify({ name, description: desc || null })
+  });
+  if (!ok) { showAlert('ob-alert', body.detail || 'Failed to create project.', 'error'); return; }
+  document.getElementById('ob-proj-id').value = body.project_id;
+  document.getElementById('ob-api-key').value = body.api_key;
+  document.getElementById('ob-result').style.display = '';
+  showAlert('ob-alert', 'Project created successfully!', 'success');
+}
+function copyApiKey() {
+  const v = document.getElementById('ob-api-key').value;
+  navigator.clipboard.writeText(v).then(() => alert('API key copied!'));
+}
+function useThisKey() {
+  const v = document.getElementById('ob-api-key').value;
+  document.getElementById('global-key').value = v;
+  apiKey = v;
+  alert('Key applied to sidebar. All requests will now use it.');
+}
+async function sendTestLog() {
+  const key = document.getElementById('ob-api-key').value;
+  if (!key) { document.getElementById('ob-test-result').textContent = 'Create a project first.'; return; }
+  const res = await fetch('/api/v1/logs', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-API-Key': key },
+    body: JSON.stringify({ logs: [{ service_name: 'dashboard-test', operation: 'send_test', level: 'ERROR', status: 'error', message: 'Test error from dashboard onboarding', error_type: 'TestError', source: 'dashboard' }] })
+  });
+  const b = await res.json().catch(() => ({}));
+  document.getElementById('ob-test-result').textContent = res.ok
+    ? `✅ ${b.accepted} log accepted.` : `❌ ${b.detail || 'Failed'}`;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Logs
+// ═══════════════════════════════════════════════════════════════════════
+let logCursorStack = [null]; // stack[0] = first page (no cursor)
+let logPage = 0;
+
+function renderLogTable(items) {
+  if (!items.length) return '<div class="empty-state">No logs found.</div>';
+  return `<table>
+    <thead><tr><th>Time</th><th>Level</th><th>Service</th><th>Operation</th><th>Message</th><th>Error Type</th><th>Correlation ID</th></tr></thead>
+    <tbody>${items.map(r => `<tr>
+      <td style="white-space:nowrap;font-size:12px">${tsShort(r.created_at)}</td>
+      <td>${badgeLevel(r.level)}</td>
+      <td><span class="tag">${r.service_name || '—'}</span></td>
+      <td style="font-size:12px">${r.operation || '—'}</td>
+      <td class="msg-cell" title="${(r.message || '').replace(/"/g, '&quot;')}">${r.message || '—'}</td>
+      <td style="font-size:12px;color:var(--red)">${r.error_type || '—'}</td>
+      <td style="font-size:11px;color:var(--muted)">${r.correlation_id || '—'}</td>
+    </tr>`).join('')}</tbody>
+  </table>`;
+}
+
+async function loadLogs(reset = false) {
+  if (reset) { logCursorStack = [null]; logPage = 0; }
+  if (!getKey()) { document.getElementById('log-table-wrap').innerHTML = '<div class="empty-state">Enter your API key in the sidebar.</div>'; return; }
+
+  document.getElementById('log-loading').style.display = '';
+  const level   = document.getElementById('log-level').value;
+  const service = document.getElementById('log-service').value.trim();
+  const start   = document.getElementById('log-start').value;
+  const end     = document.getElementById('log-end').value;
+
+  let url = '/api/v1/logs?limit=20';
+  if (level)   url += `&level=${encodeURIComponent(level)}`;
+  if (service) url += `&service_name=${encodeURIComponent(service)}`;
+  if (start)   url += `&start_time=${encodeURIComponent(new Date(start).toISOString())}`;
+  if (end)     url += `&end_time=${encodeURIComponent(new Date(end).toISOString())}`;
+  const cursor = logCursorStack[logPage];
+  if (cursor)  url += `&cursor=${encodeURIComponent(cursor)}`;
+
+  const { ok, body } = await apiFetch(url);
+  document.getElementById('log-loading').style.display = 'none';
+  if (!ok) { document.getElementById('log-table-wrap').innerHTML = '<div class="empty-state">Failed to load logs.</div>'; return; }
+
+  document.getElementById('log-table-wrap').innerHTML = renderLogTable(body.items || []);
+
+  // maintain cursor stack for pagination
+  if (body.next_cursor && logCursorStack.length === logPage + 1) {
+    logCursorStack.push(body.next_cursor);
+  }
+
+  document.getElementById('log-prev-btn').disabled = logPage === 0;
+  document.getElementById('log-next-btn').disabled = !body.next_cursor;
+  document.getElementById('log-page-info').textContent = `Page ${logPage + 1}`;
+}
+
+function logNext() { logPage++; loadLogs(); }
+function logPrev() { if (logPage > 0) { logPage--; loadLogs(); } }
+function clearLogFilters() {
+  ['log-level', 'log-service', 'log-start', 'log-end'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el.tagName === 'SELECT') el.value = ''; else el.value = '';
+  });
+  loadLogs(true);
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Insights
+// ═══════════════════════════════════════════════════════════════════════
+async function loadInsights() {
+  if (!getKey()) { return; }
+  const w = document.getElementById('ins-window').value;
+  document.getElementById('ins-loading').style.display = '';
+  document.getElementById('ins-empty').style.display = 'none';
+  document.getElementById('ins-result').style.display = 'none';
+
+  const { ok, body } = await apiFetch(`/api/v1/insights?lookback_minutes=${w}`);
+  document.getElementById('ins-loading').style.display = 'none';
+
+  if (!ok) { document.getElementById('ins-empty').textContent = body.detail || 'Failed.'; document.getElementById('ins-empty').style.display = ''; return; }
+
+  document.getElementById('ins-total').textContent   = body.total_logs ?? '—';
+  document.getElementById('ins-errors').textContent  = body.error_logs ?? '—';
+  document.getElementById('ins-svc').textContent     = body.top_service || '—';
+  document.getElementById('ins-errtype').textContent = body.top_error_type || '—';
+  document.getElementById('ins-rc').textContent      = body.root_cause || '—';
+  document.getElementById('ins-sugg').textContent    = body.suggestion || '—';
+  document.getElementById('ins-conf').textContent    = body.confidence != null
+    ? `${(body.confidence * 100).toFixed(0)}%` : '—';
+  document.getElementById('ins-result').style.display = '';
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Cloud Integrations
+// ═══════════════════════════════════════════════════════════════════════
+async function createIntegration() {
+  const name     = document.getElementById('int-name').value.trim();
+  const provider = document.getElementById('int-provider').value;
+  const service  = document.getElementById('int-service').value;
+  if (!name) { showAlert('int-alert', 'Name is required.', 'error'); return; }
+  if (!getKey()) { showAlert('int-alert', 'Enter your API key in the sidebar.', 'error'); return; }
+  hideAlert('int-alert');
+
+  const { ok, body } = await apiFetch('/api/v1/integrations', {
+    method: 'POST', body: JSON.stringify({ name, provider })
+  });
+  if (!ok) { showAlert('int-alert', body.detail || 'Failed to create integration.', 'error'); return; }
+
+  let webhookWithToken = `${body.webhook_url}?token=${body.webhook_token}`;
+  if (service) webhookWithToken += `&source=${encodeURIComponent(service)}`;
+  document.getElementById('int-wh-url').value   = webhookWithToken;
+  document.getElementById('int-wh-token').value = body.webhook_token;
+  document.getElementById('int-created-box').style.display = '';
+  showAlert('int-alert', `Integration created for ${provider.toUpperCase()} / ${service}. Configure your cloud with the webhook URL below.`, 'success');
+  loadIntegrations();
+}
+
+async function loadIntegrations() {
+  if (!getKey()) return;
+  const { ok, body } = await apiFetch('/api/v1/integrations');
+  const wrap = document.getElementById('int-table-wrap');
+  if (!ok || !body.items?.length) {
+    wrap.innerHTML = '<div class="empty-state">No integrations yet. Connect a cloud above.</div>'; return;
+  }
+  wrap.innerHTML = `<table>
+    <thead><tr><th>Name</th><th>Provider</th><th>Status</th><th>Created</th><th>Action</th></tr></thead>
+    <tbody>${body.items.map(r => `<tr>
+      <td>${r.name}</td>
+      <td><span class="tag">${r.provider.toUpperCase()}</span></td>
+      <td>${badgeStatus(r.status === 'active')}</td>
+      <td style="font-size:12px">${tsShort(r.created_at)}</td>
+      <td><button class="btn btn-danger btn-sm" onclick="deleteIntegration('${r.id}')">Delete</button></td>
+    </tr>`).join('')}</tbody>
+  </table>`;
+}
+
+async function deleteIntegration(id) {
+  if (!confirm('Delete this integration? The cloud will stop sending logs.')) return;
+  const { ok } = await apiFetch(`/api/v1/integrations/${id}`, { method: 'DELETE' });
+  if (ok) loadIntegrations();
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Alerts
+// ═══════════════════════════════════════════════════════════════════════
+async function sendAlert() {
+  const title = document.getElementById('al-title').value.trim();
+  const msg   = document.getElementById('al-msg').value.trim();
+  const sev   = document.getElementById('al-sev').value;
+  if (!title || !msg) { showAlert('al-alert', 'Title and message are required.', 'error'); return; }
+  if (!getKey()) { showAlert('al-alert', 'Enter your API key in the sidebar.', 'error'); return; }
+  hideAlert('al-alert');
+
+  const { ok, body } = await apiFetch('/api/v1/alerts/test', {
+    method: 'POST', body: JSON.stringify({ title, message: msg, severity: sev })
+  });
+  if (!ok) { showAlert('al-alert', body.detail || 'Request failed.', 'error'); return; }
+
+  function deliverBadge(v) {
+    return v
+      ? '<span class="badge badge-active">✅ Delivered</span>'
+      : '<span class="badge badge-inactive">❌ Not configured</span>';
+  }
+  document.getElementById('al-slack').innerHTML = deliverBadge(body.slack);
+  document.getElementById('al-teams').innerHTML = deliverBadge(body.teams);
+  document.getElementById('al-email').innerHTML = deliverBadge(body.email);
+  document.getElementById('al-result-card').style.display = '';
+  showAlert('al-alert', 'Alert sent. See delivery results.', 'success');
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Boot
+// ═══════════════════════════════════════════════════════════════════════
+document.getElementById('global-key').addEventListener('change', loadOverview);
+updateIntegrationProviderUI(document.getElementById('int-provider').value);
+</script>
+</body>
+</html>

@@ -1,0 +1,8 @@
+Company/.env
+Company/.env.example
+Company/company_app.py
+Company/requirements.txt
+Company/app.py
+Company/__pycache__/app.cpython-314.pyc
+Company/__pycache__/company_app.cpython-314.pyc
+# AI-Powered Monitoring & Auto-Debugging.md

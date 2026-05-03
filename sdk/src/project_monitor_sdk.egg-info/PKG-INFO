@@ -1,0 +1,80 @@
+Metadata-Version: 2.4
+Name: project-monitor-sdk
+Version: 0.1.0
+Summary: Official SDK for the Project Monitor AI Observability Platform
+License: MIT
+Keywords: monitoring,observability,logging,apm
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+Requires-Dist: requests>=2.28
+Provides-Extra: asgi
+Provides-Extra: flask
+Requires-Dist: flask>=2.0; extra == "flask"
+
+# Project Monitor SDK
+
+Official Python SDK for the [Project Monitor](https://github.com/your-org/project-monitor) AI Observability Platform.
+
+## Install
+
+```bash
+pip install project-monitor-sdk
+```
+
+Or in editable / development mode from this repo:
+
+```bash
+pip install -e "e:\Project Monitor\sdk"
+```
+
+## Quick start
+
+```python
+from monitor_sdk import Monitor, MonitorASGIMiddleware
+
+monitor = Monitor(
+    api_key="pm_your_api_key",
+    base_url="http://localhost:8000",
+    service_name="my-service",
+    min_level="WARN",   # only WARN and above are sent
+)
+
+# Manual logging
+monitor.warn("disk usage above 90%", operation="disk_check", metadata={"usage_pct": 91})
+monitor.error("payment failed", operation="checkout", error_type="TimeoutError")
+
+# Capture exceptions automatically
+try:
+    risky_operation()
+except Exception as exc:
+    monitor.capture_exception(exc, operation="risky_operation")
+
+# Trace a block
+with monitor.trace("checkout_flow"):
+    process_order()
+
+# ASGI middleware (FastAPI / Starlette) – auto-logs every request
+from fastapi import FastAPI
+app = FastAPI()
+app.add_middleware(MonitorASGIMiddleware, monitor=monitor)
+```
+
+## Configuration
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `api_key` | required | Project Monitor API key |
+| `base_url` | required | Backend URL, e.g. `http://localhost:8000` |
+| `service_name` | `None` | Name shown in the dashboard |
+| `min_level` | `"WARN"` | Drop logs below this level (`DEBUG` / `INFO` / `WARN` / `ERROR` / `CRITICAL`) |
+| `batch_size` | `50` | Flush when buffer reaches this many events |
+| `flush_interval` | `2.0` | Seconds between automatic flushes |
+| `max_retries` | `3` | HTTP retries per batch |
+
+## Log levels
+
+```
+DEBUG < INFO < WARN < ERROR < CRITICAL
+```
+
+Only events **at or above** `min_level` are sent to the backend.
