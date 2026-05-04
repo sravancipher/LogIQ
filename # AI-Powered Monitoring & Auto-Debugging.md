@@ -1869,8 +1869,6 @@ What is pending now is mostly production hardening, SDK/agent automation, enterp
 If you want, I can next produce a strict Phase 2 execution plan with estimated effort and a build order like 2-week sprints.
 
 
-py-pi access token: 
-
 
 steps to upload a package to PyPi:
 # 1. Install build tools
@@ -1884,5 +1882,121 @@ python -m build
 twine upload dist/*
 
 
+# 1. Go to your SDK folder
+cd "e:\Project Monitor\sdk"
+
+# 2. Bump version in pyproject.toml  (e.g. 0.1.0 → 0.1.1)
+#    Edit the file, change:  version = "0.1.1"
+
+# 3. Clean old build
+Remove-Item -Recurse -Force dist, build
+
+# 4. Build new distribution
+python -m build
+
+# 5. Upload to PyPI
+twine upload dist/*
+
+
 
 monitor: uvicorn app.main:app --reload
+
+Read [](file:///e%3A/Project%20Monitor/backend)
+
+Read [](file:///e%3A/Project%20Monitor/backend/app/api/v1/api.py)
+
+Read [](file:///e%3A/Project%20Monitor/backend/app/api/v1/routes)
+
+Read [](file:///e%3A/Project%20Monitor/backend/app/services)
+
+Read [](file:///e%3A/Project%20Monitor/backend/app/models)
+
+Read [](file:///e%3A/Project%20Monitor/backend/app/api/v1/routes/alerts.py)
+
+Read [](file:///e%3A/Project%20Monitor/backend/app/services/alert_service.py)
+
+Read [](file:///e%3A/Project%20Monitor/backend/app/api/v1/routes/insights.py)
+
+Read [](file:///e%3A/Project%20Monitor/backend/app/api/v1/routes/integrations.py#1-1), lines 1 to 80
+
+Read [](file:///e%3A/Project%20Monitor/backend/app/services/insights_service.py#1-1), lines 1 to 120
+
+Read [](file:///e%3A/Project%20Monitor/backend/app/api/v1/routes/logs.py#1-1), lines 1 to 80
+
+Read [](file:///e%3A/Project%20Monitor/backend/monitor_sdk)
+
+Read [](file:///e%3A/Project%20Monitor/backend/app/services/queue_service.py)
+
+Read [](file:///e%3A/Project%20Monitor/backend/app/core/config.py)
+
+Read [](file:///e%3A/Project%20Monitor/backend/tests)
+
+Read [](file:///e%3A/Project%20Monitor/backend/scripts)
+
+Read [](file:///e%3A/Project%20Monitor/backend/monitor_sdk/client.py#1-1), lines 1 to 60
+
+Read [](file:///e%3A/Project%20Monitor/backend/app/models/work_queue.py)
+
+Read [](file:///e%3A/Project%20Monitor/backend/app/core/security.py)
+
+Now I have a full picture. Here's a comprehensive gap analysis:
+
+---
+
+## What's Already Built
+
+- **Projects** — create project + API key generation
+- **Log ingestion** — `POST /logs` with batching, idempotency, work queue items
+- **Log querying** — cursor-based pagination, level/service/time filters
+- **AI Insights** — rule-based + Ollama LLM analysis, feedback endpoint
+- **Alerts** — manual test delivery to Slack, Teams, SMTP
+- **Cloud Integrations** — CRUD + webhook receiver, AWS / Azure / GCP normalizer/parsers
+- **Python SDK** — batched background sender, retry, correlation ID middleware
+- **Dashboard** — single-page HTML UI for all the above
+
+---
+
+## What's Missing / Not Yet Implemented
+
+### 🔴 Critical (core features broken without these)
+
+| # | Gap | Detail |
+|---|-----|--------|
+| 1 | **Work Queue Worker** | queue_service.py has `fetch_pending_jobs / mark_job_done / mark_job_failed` but **no background worker process** polls or executes queued jobs. `scripts/` is empty. Every ingested log batch creates a `pending` queue item that's never processed. |
+| 2 | **Automatic Alert Rules** | Alerts exist only as a "send test" button. There's no `AlertRule` model — no way to say "if >50 errors/5 min → fire Slack alert automatically". The system can't self-trigger alerts on incidents. |
+| 3 | **Projects list / detail / delete API** | No `GET /projects`, `GET /projects/{id}`, `DELETE /projects/{id}`. Dashboard can only create a project, not browse or switch between multiple ones. |
+
+### 🟠 Important (significant UX or capability gaps)
+
+| # | Gap | Detail |
+|---|-----|--------|
+| 4 | **API Key management endpoints** | No list-keys, revoke-key, or create-additional-key routes. Users can't rotate compromised keys without deleting the project. |
+| 5 | **Scheduled / automatic insights** | Insights run on demand only. No cron/background job that detects a spike and proactively runs analysis + fires alerts. |
+| 6 | **Log full-text / metadata search** | Filtering is limited to `level`, `service_name`, `start_time`, `end_time`. No search by `message`, `error_type`, `correlation_id`, or `metadata` JSON fields. |
+| 7 | **AI Insights feedback UI** | `POST /insights/feedback` endpoint exists but the dashboard has no thumbs-up/down or correction form wired to it. |
+| 8 | **LLM provider flexibility** | `config.llm_provider` exists but only the `"ollama"` path is implemented. No OpenAI / Anthropic / Groq path despite the config implying multi-provider support. |
+
+### 🟡 Polish / Enhancement
+
+| # | Gap | Detail |
+|---|-----|--------|
+| 9 | **Charts on dashboard** | No log volume over time, no error-rate trend graph. Pure table/stats view only. |
+| 10 | **Log detail expand / modal** | Clicking a log row shows nothing extra. `metadata_json`, full `message`, raw `source`, `correlation_id` trail are invisible. |
+| 11 | **Project switcher in UI** | Dashboard is single-project (API key = project). No way to store/switch between multiple saved projects. |
+| 12 | **Rate limiting on ingest** | No request-rate limit on `POST /logs`. A misconfigured SDK or malicious key could flood the DB. |
+| 13 | **Log retention / cleanup** | No TTL policy or cleanup job. The `logs` table grows forever. |
+| 14 | **Prometheus `/metrics` endpoint** | No instrumentation endpoint for infra-level monitoring of the monitor itself. |
+| 15 | **SDK for other languages** | Python SDK only. Node.js / Go / Java SDKs not yet built. |
+| 16 | **GCP webhook source routing** | GCP parsers exist in `cloud_normalizer.py` but confirm that the webhook receiver actually dispatches to them via the `source` hint — worth an integration test. |
+| 17 | **Alembic migration scripts** | `alembic/` folder exists but `scripts/` is empty — need to verify all models have migration revisions and `alembic upgrade head` works cleanly. |
+
+---
+
+### Recommended Priority Order
+
+1. **Work queue worker** — without it, queued tasks silently accumulate doing nothing
+2. **Alert rules engine** — the whole "auto-debugging" promise needs proactive alerting
+3. **Project CRUD + API key management** — needed for real multi-project use
+4. **Scheduled insights + auto-alert trigger**
+5. **Log search / filters expansion**
+6. **Dashboard: charts, log detail modal, feedback UI, project switcher**You've used 53% of your weekly rate limit. Your weekly rate limit will reset on May 4 at 5:30 AM. [Learn More](https://aka.ms/github-copilot-rate-limit-error)

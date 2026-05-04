@@ -12,6 +12,24 @@ class InsightTimelineEvent(BaseModel):
     correlation_id: str | None = None
 
 
+class InsightErrorGroup(BaseModel):
+    service_name: str
+    error_type: str
+    operation: str
+    count: int
+    last_seen: str
+
+
+class InsightErrorGroupRef(BaseModel):
+    service_name: str
+    error_type: str
+    operation: str
+
+
+class InsightDependentErrorGroup(InsightErrorGroupRef):
+    shared_correlation_count: int
+
+
 class InsightsResponse(BaseModel):
     project_id: str
     lookback_minutes: int
@@ -24,6 +42,9 @@ class InsightsResponse(BaseModel):
     confidence: float
     incident_summary: str
     action_plan: list[str] = Field(default_factory=list)
+    error_groups: list[InsightErrorGroup] = Field(default_factory=list)
+    target_error_group: InsightErrorGroupRef | None = None
+    contributing_error_groups: list[InsightDependentErrorGroup] = Field(default_factory=list)
     timeline: list[InsightTimelineEvent] = Field(default_factory=list)
     analysis_mode: Literal["llm", "fallback"] = "fallback"
     model_name: str | None = None

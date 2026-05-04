@@ -3,444 +3,676 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Project Monitor</title>
+  <title>LogIQ — Logs. Insights. Intelligence.</title>
   <style>
-    /* ── reset & tokens ───────────────────────────────────────── */
+    /* ── Reset & Tokens ─────────────────────────────────────────── */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
-      --bg:        #0f1117;
-      --surface:   #1a1d27;
-      --surface2:  #22263a;
-      --border:    #2e3250;
-      --text:      #e8eaf6;
-      --muted:     #7986cb;
-      --accent:    #5c6bc0;
-      --accent-h:  #7986cb;
-      --green:     #66bb6a;
-      --red:       #ef5350;
-      --yellow:    #ffa726;
-      --blue:      #42a5f5;
-      --radius:    10px;
-      --font:      "Inter", "Segoe UI", sans-serif;
+      --bg:          #040912;
+      --surface:     #0c1526;
+      --surface2:    #111e33;
+      --surface3:    #162035;
+      --border:      #1a2d4a;
+      --border2:     #243856;
+      --text:        #e2eeff;
+      --text-sub:    #94a8c4;
+      --muted:       #5a7494;
+      --cyan:        #22d3ee;
+      --purple:      #a855f7;
+      --orange:      #f97316;
+      --green:       #10b981;
+      --red:         #f43f5e;
+      --yellow:      #fbbf24;
+      --blue:        #3b82f6;
+      --grad:        linear-gradient(135deg, #22d3ee 0%, #a855f7 52%, #f97316 100%);
+      --radius:      12px;
+      --radius-sm:   8px;
+      --sidebar-w:   252px;
+      --font:        "Inter", "Segoe UI", system-ui, sans-serif;
     }
-    body { font-family: var(--font); background: var(--bg); color: var(--text); min-height: 100vh; display: flex; }
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      font-size: 14px;
+      line-height: 1.5;
+    }
 
-    /* ── sidebar ──────────────────────────────────────────────── */
+    /* ── Sidebar ── */
     #sidebar {
-      width: 220px; min-height: 100vh; background: var(--surface);
-      border-right: 1px solid var(--border); display: flex; flex-direction: column;
-      padding: 20px 0; position: fixed; top: 0; left: 0;
+      width: var(--sidebar-w);
+      min-height: 100vh;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      position: fixed;
+      top: 0; left: 0;
+      z-index: 100;
     }
-    #sidebar .brand { font-size: 17px; font-weight: 700; color: var(--text); padding: 0 20px 20px; letter-spacing: .3px; }
-    #sidebar .brand span { color: var(--accent-h); }
+    #sidebar::before {
+      content: '';
+      display: block;
+      height: 3px;
+      background: var(--grad);
+      flex-shrink: 0;
+    }
+    .sidebar-logo {
+      padding: 18px 20px 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    .sidebar-logo img {
+      width: 148px;
+      height: auto;
+      display: block;
+    }
+    .nav-section {
+      padding: 20px 20px 6px;
+      font-size: 10px;
+      letter-spacing: 1.5px;
+      color: var(--muted);
+      text-transform: uppercase;
+      font-weight: 600;
+    }
     #sidebar nav a {
-      display: flex; align-items: center; gap: 10px; padding: 10px 20px;
-      color: var(--muted); text-decoration: none; font-size: 14px; border-left: 3px solid transparent;
-      transition: all .15s;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 20px;
+      color: var(--text-sub);
+      text-decoration: none;
+      font-size: 13.5px;
+      font-weight: 500;
+      border-left: 3px solid transparent;
+      transition: all 0.15s;
     }
-    #sidebar nav a:hover, #sidebar nav a.active {
-      color: var(--text); background: var(--surface2); border-left-color: var(--accent-h);
+    #sidebar nav a .nav-icon { width: 18px; text-align: center; font-style: normal; flex-shrink: 0; }
+    #sidebar nav a:hover { color: var(--text); background: var(--surface2); border-left-color: var(--border2); }
+    #sidebar nav a.active { color: var(--cyan); background: rgba(34,211,238,0.07); border-left-color: var(--cyan); }
+    .sidebar-bottom { margin-top: auto; padding: 16px; border-top: 1px solid var(--border); }
+    .api-key-box {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 10px 12px;
     }
-    #sidebar .api-key-pill {
-      margin: auto 16px 0; padding: 10px 12px; background: var(--surface2);
-      border: 1px solid var(--border); border-radius: var(--radius); font-size: 12px;
+    .api-key-box label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 10px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 6px;
     }
-    #sidebar .api-key-pill label { color: var(--muted); display: block; margin-bottom: 4px; }
-    #sidebar .api-key-pill input {
-      width: 100%; background: transparent; border: none; color: var(--text); font-size: 12px;
-      outline: none; cursor: pointer;
+    .api-key-box input {
+      width: 100%;
+      background: transparent;
+      border: none;
+      color: var(--text);
+      font-size: 12px;
+      font-family: monospace;
+      outline: none;
     }
+    .api-key-box input::placeholder { color: var(--muted); }
+    .conn-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--muted);
+      display: inline-block;
+      flex-shrink: 0;
+      transition: all 0.3s;
+    }
+    .conn-dot.live { background: var(--green); box-shadow: 0 0 7px var(--green); }
 
-    /* ── main ─────────────────────────────────────────────────── */
-    #main { margin-left: 220px; flex: 1; padding: 28px 32px; max-width: 1100px; }
+    /* ── Main wrapper ── */
+    #main { margin-left: var(--sidebar-w); flex: 1; display: flex; flex-direction: column; min-height: 100vh; }
+
+    /* ── Topbar ── */
+    #topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 32px;
+      height: 56px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      z-index: 90;
+      flex-shrink: 0;
+    }
+    #topbar-title { font-size: 15px; font-weight: 600; color: var(--text); }
+    #topbar-sub { font-size: 12px; color: var(--muted); }
+
+    /* ── Content ── */
+    #content { padding: 28px 32px; flex: 1; max-width: 1200px; width: 100%; }
     .page { display: none; }
     .page.active { display: block; }
-    h2 { font-size: 20px; font-weight: 600; margin-bottom: 20px; }
-    h3 { font-size: 15px; font-weight: 600; margin-bottom: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
+    .page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
+    .page-header h2 {
+      font-size: 22px;
+      font-weight: 700;
+      background: var(--grad);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
 
-    /* ── cards / grid ─────────────────────────────────────────── */
+    /* ── Cards ── */
     .card {
-      background: var(--surface); border: 1px solid var(--border);
-      border-radius: var(--radius); padding: 20px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      position: relative;
+      overflow: hidden;
+    }
+    .card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--border2), transparent);
+    }
+    .card-title {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 1.2px;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 14px;
+    }
+    h3 {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 1.2px;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 14px;
     }
     .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
     .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
     .grid4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
 
-    /* ── stat pill ────────────────────────────────────────────── */
-    .stat-val { font-size: 30px; font-weight: 700; }
-    .stat-lbl { font-size: 13px; color: var(--muted); margin-top: 4px; }
-    .green { color: var(--green); }
-    .red   { color: var(--red); }
-    .yellow{ color: var(--yellow); }
-    .blue  { color: var(--blue); }
-
-    /* ── forms ────────────────────────────────────────────────── */
-    .form-row { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
-    .form-row label { font-size: 13px; color: var(--muted); }
-    .form-row input, .form-row select, .form-row textarea {
-      background: var(--surface2); border: 1px solid var(--border); border-radius: 8px;
-      color: var(--text); padding: 9px 12px; font-size: 14px; outline: none;
-      transition: border-color .15s;
+    /* ── Stat Cards ── */
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px 20px 16px;
+      position: relative;
+      overflow: hidden;
     }
-    .form-row input:focus, .form-row select:focus, .form-row textarea:focus { border-color: var(--accent-h); }
+    .stat-bar { position: absolute; top: 0; left: 0; right: 0; height: 3px; }
+    .stat-bar.cyan   { background: linear-gradient(90deg, #22d3ee, #67e8f9); }
+    .stat-bar.red    { background: linear-gradient(90deg, #f43f5e, #fb7185); }
+    .stat-bar.green  { background: linear-gradient(90deg, #10b981, #34d399); }
+    .stat-bar.yellow { background: linear-gradient(90deg, #fbbf24, #fcd34d); }
+    .stat-bar.purple { background: linear-gradient(90deg, #a855f7, #c084fc); }
+    .stat-bar.orange { background: linear-gradient(90deg, #f97316, #fb923c); }
+    .stat-lbl { font-size: 12px; color: var(--text-sub); margin-bottom: 6px; }
+    .stat-val { font-size: 28px; font-weight: 700; line-height: 1.2; }
+    .stat-val.cyan   { color: var(--cyan); }
+    .stat-val.red    { color: var(--red); }
+    .stat-val.green  { color: var(--green); }
+    .stat-val.yellow { color: var(--yellow); }
+
+    /* ── Forms ── */
+    .form-row { display: flex; flex-direction: column; gap: 5px; margin-bottom: 14px; }
+    .form-row label { font-size: 12px; color: var(--text-sub); font-weight: 500; }
+    .form-row input,
+    .form-row select,
+    .form-row textarea {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      color: var(--text);
+      padding: 9px 12px;
+      font-size: 13px;
+      outline: none;
+      transition: border-color 0.15s, box-shadow 0.15s;
+      font-family: var(--font);
+    }
+    .form-row input:focus, .form-row select:focus, .form-row textarea:focus {
+      border-color: var(--cyan);
+      box-shadow: 0 0 0 3px rgba(34,211,238,0.1);
+    }
+    .form-row input::placeholder, .form-row textarea::placeholder { color: var(--muted); }
     .form-row select option { background: var(--surface2); }
+    .form-hint { font-size: 11px; color: var(--muted); margin-top: 4px; }
 
-    /* ── buttons ──────────────────────────────────────────────── */
+    /* ── Buttons ── */
     .btn {
-      display: inline-flex; align-items: center; gap: 6px;
-      padding: 9px 18px; border-radius: 8px; font-size: 14px; font-weight: 500;
-      cursor: pointer; border: none; transition: opacity .15s;
+      display: inline-flex; align-items: center; justify-content: center;
+      gap: 6px; padding: 9px 18px; border-radius: var(--radius-sm);
+      font-size: 13px; font-weight: 500; cursor: pointer; border: none;
+      transition: all 0.15s; font-family: var(--font); white-space: nowrap;
     }
-    .btn:hover { opacity: .85; }
-    .btn-primary { background: var(--accent); color: #fff; }
-    .btn-danger  { background: var(--red);    color: #fff; }
-    .btn-ghost   { background: var(--surface2); border: 1px solid var(--border); color: var(--text); }
-    .btn-sm      { padding: 6px 12px; font-size: 13px; }
+    .btn-primary { background: var(--grad); color: #fff; box-shadow: 0 2px 14px rgba(34,211,238,0.2); }
+    .btn-primary:hover { opacity: 0.88; box-shadow: 0 4px 22px rgba(34,211,238,0.3); }
+    .btn-danger  { background: rgba(244,63,94,0.15); color: var(--red); border: 1px solid rgba(244,63,94,0.3); }
+    .btn-danger:hover { background: rgba(244,63,94,0.25); }
+    .btn-ghost   { background: var(--surface2); border: 1px solid var(--border); color: var(--text-sub); }
+    .btn-ghost:hover { border-color: var(--border2); color: var(--text); }
+    .btn-sm { padding: 6px 12px; font-size: 12px; border-radius: 6px; }
 
-    /* ── table ────────────────────────────────────────────────── */
-    table { width: 100%; border-collapse: collapse; font-size: 13px; }
-    th { text-align: left; color: var(--muted); padding: 8px 12px; border-bottom: 1px solid var(--border); font-weight: 500; }
-    td { padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    /* ── Table ── */
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+    th {
+      text-align: left; color: var(--muted); padding: 9px 12px;
+      border-bottom: 1px solid var(--border); font-weight: 600;
+      font-size: 11px; letter-spacing: 0.5px; text-transform: uppercase; white-space: nowrap;
+    }
+    td { padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
     tr:last-child td { border-bottom: none; }
+    tr:hover td { background: rgba(255,255,255,0.015); }
 
-    /* ── badges ───────────────────────────────────────────────── */
-    .badge {
-      display: inline-block; padding: 2px 8px; border-radius: 20px;
-      font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .4px;
-    }
-    .badge-error  { background: rgba(239,83,80,.15);  color: var(--red); }
-    .badge-warn   { background: rgba(255,167,38,.15); color: var(--yellow); }
-    .badge-info   { background: rgba(66,165,245,.15); color: var(--blue); }
-    .badge-debug  { background: rgba(122,132,202,.15);color: var(--muted); }
-    .badge-active { background: rgba(102,187,106,.15);color: var(--green); }
-    .badge-inactive{background: rgba(239,83,80,.15);  color: var(--red); }
+    /* ── Badges ── */
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+    .badge-error   { background: rgba(244,63,94,0.15);   color: var(--red);    border: 1px solid rgba(244,63,94,0.25); }
+    .badge-warn    { background: rgba(251,191,36,0.15);  color: var(--yellow); border: 1px solid rgba(251,191,36,0.25); }
+    .badge-info    { background: rgba(59,130,246,0.15);  color: var(--blue);   border: 1px solid rgba(59,130,246,0.25); }
+    .badge-debug   { background: rgba(90,116,148,0.15);  color: var(--muted);  border: 1px solid rgba(90,116,148,0.2); }
+    .badge-active  { background: rgba(16,185,129,0.15);  color: var(--green);  border: 1px solid rgba(16,185,129,0.25); }
+    .badge-inactive{ background: rgba(244,63,94,0.12);   color: var(--red);    border: 1px solid rgba(244,63,94,0.2); }
 
-    /* ── misc ─────────────────────────────────────────────────── */
-    .alert-box {
-      padding: 12px 16px; border-radius: 8px; font-size: 13px; margin-bottom: 16px; display: none;
-    }
-    .alert-box.show { display: block; }
-    .alert-box.success { background: rgba(102,187,106,.15); border: 1px solid var(--green); color: var(--green); }
-    .alert-box.error   { background: rgba(239,83,80,.15);   border: 1px solid var(--red);   color: var(--red); }
-    .alert-box.info    { background: rgba(66,165,245,.15);  border: 1px solid var(--blue);  color: var(--blue); }
+    /* ── Alert boxes ── */
+    .alert-box { padding: 10px 14px; border-radius: var(--radius-sm); font-size: 13px; margin-bottom: 14px; display: none; }
+    .alert-box.show    { display: block; }
+    .alert-box.success { background: rgba(16,185,129,0.1);  border: 1px solid rgba(16,185,129,0.3); color: var(--green); }
+    .alert-box.error   { background: rgba(244,63,94,0.1);   border: 1px solid rgba(244,63,94,0.3);  color: var(--red); }
+    .alert-box.info    { background: rgba(34,211,238,0.08); border: 1px solid rgba(34,211,238,0.25);color: var(--cyan); }
+
+    /* ── Code blocks ── */
     pre.code-box {
-      background: var(--surface2); border: 1px solid var(--border); border-radius: 8px;
-      padding: 14px; font-size: 12px; overflow-x: auto; white-space: pre-wrap; color: var(--blue);
+      background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm);
+      padding: 14px; font-size: 12px; overflow-x: auto; white-space: pre-wrap;
+      color: var(--cyan); font-family: "Fira Mono","Consolas",monospace; line-height: 1.8;
     }
-    .copy-btn { float: right; font-size: 11px; }
-    .tag { background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; padding: 2px 8px; font-size: 12px; color: var(--muted); }
+
+    /* ── Utilities ── */
+    .tag { background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; padding: 2px 8px; font-size: 11px; color: var(--text-sub); font-family: monospace; }
+    .tag-aws   { background: rgba(249,115,22,0.12); border-color: rgba(249,115,22,0.3); color: var(--orange); }
+    .tag-azure { background: rgba(59,130,246,0.12);  border-color: rgba(59,130,246,0.3);  color: var(--blue); }
+    .tag-gcp   { background: rgba(16,185,129,0.12);  border-color: rgba(16,185,129,0.3);  color: var(--green); }
     .mt-16 { margin-top: 16px; }
     .mb-16 { margin-bottom: 16px; }
-    .gap-8 { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-    .divider { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
-    .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--muted); border-top-color: var(--accent-h); border-radius: 50%; animation: spin .6s linear infinite; }
+    .gap-8  { display: flex; gap: 8px;  flex-wrap: wrap; align-items: center; }
+    .gap-12 { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+    .divider { border: none; border-top: 1px solid var(--border); margin: 18px 0; }
+    .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--border2); border-top-color: var(--cyan); border-radius: 50%; animation: spin 0.6s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
-    .empty-state { text-align: center; color: var(--muted); padding: 40px; }
-    .msg-cell { max-width: 360px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .pagination { display: flex; gap: 8px; align-items: center; margin-top: 16px; font-size: 13px; }
-    #log-cursor-stack { display: none; }
+    .empty-state { text-align: center; color: var(--muted); padding: 48px 20px; font-size: 13px; }
+    .msg-cell { max-width: 340px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-sub); }
+    .pagination { display: flex; gap: 8px; align-items: center; margin-top: 14px; font-size: 12px; }
+    .mono { font-family: "Fira Mono","Consolas",monospace; }
+
+    /* ── Confidence bar ── */
+    .conf-bar-wrap { margin-top: 14px; }
+    .conf-bar-header { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+    .conf-bar-track { height: 5px; background: var(--surface2); border-radius: 3px; overflow: hidden; }
+    .conf-bar-fill  { height: 100%; background: var(--grad); border-radius: 3px; transition: width 0.5s ease; }
+
+    /* ── Numbered step list ── */
+    .step-list { list-style: none; padding: 0; counter-reset: step; }
+    .step-list li {
+      counter-increment: step;
+      display: flex; align-items: flex-start; gap: 12px;
+      padding: 9px 0; border-bottom: 1px solid var(--border);
+      font-size: 13px; color: var(--text-sub);
+    }
+    .step-list li:last-child { border-bottom: none; }
+    .step-list li::before {
+      content: counter(step);
+      display: flex; align-items: center; justify-content: center;
+      width: 22px; height: 22px; border-radius: 50%;
+      background: var(--grad); color: #fff;
+      font-size: 11px; font-weight: 700; flex-shrink: 0; margin-top: 1px;
+    }
+
+    /* ── Filter bar ── */
+    .filter-bar { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
+    .filter-bar .form-row { margin-bottom: 0; flex: 1; min-width: 110px; }
+    .filter-bar .btn-group { display: flex; gap: 8px; align-self: flex-end; }
+
+    /* ── Quick actions ── */
+    .quick-actions { display: flex; flex-direction: column; gap: 10px; }
   </style>
 </head>
 <body>
 
-<!-- ═══════════════════════════════ SIDEBAR ═══════════════════════════════ -->
+<!-- SIDEBAR -->
 <aside id="sidebar">
-  <div class="brand">Project <span>Monitor</span></div>
+  <div class="sidebar-logo">
+    <img src="/dashboard/assets/project_logo_bg.png" alt="LogIQ" style="height: 40px; width: auto;" />
+  </div>
+  <div class="nav-section">Navigation</div>
   <nav>
-    <a href="#" class="active" data-page="page-home">🏠 Overview</a>
-    <a href="#" data-page="page-onboard">🚀 New Project</a>
-    <a href="#" data-page="page-logs">📋 Logs</a>
-    <a href="#" data-page="page-insights">🧠 Insights</a>
-    <a href="#" data-page="page-integrations">☁️ Cloud Integrations</a>
-    <a href="#" data-page="page-alerts">🔔 Alerts</a>
+    <a href="#" class="active" data-page="page-home"><i class="nav-icon">&#9673;</i> Overview</a>
+    <a href="#" data-page="page-onboard"><i class="nav-icon">&#10022;</i> New Project</a>
+    <a href="#" data-page="page-logs"><i class="nav-icon">&#8801;</i> Log Explorer</a>
+    <a href="#" data-page="page-insights"><i class="nav-icon">&#10504;</i> AI Insights</a>
+    <a href="#" data-page="page-integrations"><i class="nav-icon">&#11041;</i> Integrations</a>
+    <a href="#" data-page="page-alerts"><i class="nav-icon">&#9678;</i> Alerts</a>
   </nav>
-  <div class="api-key-pill">
-    <label>Active API Key</label>
-    <input id="global-key" type="text" placeholder="Paste pm_... key" autocomplete="off" spellcheck="false" />
+  <div class="sidebar-bottom">
+    <div class="api-key-box">
+      <label><span class="conn-dot" id="conn-dot"></span> API Key</label>
+      <input id="global-key" type="password" placeholder="Paste pm_... key" autocomplete="off" spellcheck="false" />
+    </div>
   </div>
 </aside>
 
-<!-- ═══════════════════════════════ MAIN ══════════════════════════════════ -->
-<main id="main">
-
-  <!-- ── OVERVIEW ──────────────────────────────────────────────────────── -->
-  <div id="page-home" class="page active">
-    <h2>Overview</h2>
-    <div id="home-alert" class="alert-box info show">Enter your API key in the sidebar to load live data.</div>
-    <div class="grid4 mb-16">
-      <div class="card"><div class="stat-val blue" id="ov-total">—</div><div class="stat-lbl">Total Logs (1 h)</div></div>
-      <div class="card"><div class="stat-val red"  id="ov-errors">—</div><div class="stat-lbl">Errors (1 h)</div></div>
-      <div class="card"><div class="stat-val green" id="ov-service">—</div><div class="stat-lbl">Top Service</div></div>
-      <div class="card"><div class="stat-val yellow" id="ov-errtype">—</div><div class="stat-lbl">Top Error Type</div></div>
-    </div>
-    <div class="card">
-      <h3>Root Cause Summary</h3>
-      <p id="ov-rc" style="color:var(--muted);font-size:14px">Load insights to see AI root-cause analysis.</p>
-      <p id="ov-sugg" style="margin-top:8px;font-size:13px;"></p>
-      <span id="ov-conf" class="tag mt-16"></span>
-    </div>
-    <div class="card mt-16">
-      <h3>Recent Errors</h3>
-      <div id="ov-recent-wrap"><div class="empty-state">No data yet.</div></div>
-    </div>
+<!-- MAIN -->
+<div id="main">
+  <div id="topbar">
+    <div id="topbar-title">Overview</div>
+    <div id="topbar-sub">LogIQ &middot; AI-Powered Observability</div>
   </div>
 
-  <!-- ── NEW PROJECT ONBOARDING ─────────────────────────────────────────── -->
-  <div id="page-onboard" class="page">
-    <h2>Create a New Project</h2>
-    <div class="grid2">
-      <div>
-        <div class="card">
-          <div id="ob-alert" class="alert-box"></div>
-          <div class="form-row">
-            <label>Project Name *</label>
-            <input id="ob-name" type="text" placeholder="e.g. my-saas-backend" />
-          </div>
-          <div class="form-row">
-            <label>Description</label>
-            <input id="ob-desc" type="text" placeholder="Optional description" />
-          </div>
-          <button class="btn btn-primary" onclick="createProject()">🚀 Create Project</button>
-        </div>
+  <div id="content">
 
-        <div id="ob-result" class="card mt-16" style="display:none">
-          <h3>✅ Project Created</h3>
-          <p style="font-size:13px;color:var(--muted);margin-bottom:12px">Save your API key — it will only be shown once.</p>
-          <div class="form-row">
-            <label>Project ID</label>
-            <input id="ob-proj-id" type="text" readonly />
-          </div>
-          <div class="form-row">
-            <label>API Key</label>
-            <input id="ob-api-key" type="text" readonly />
-          </div>
-          <div class="gap-8 mt-16">
-            <button class="btn btn-primary btn-sm" onclick="copyApiKey()">📋 Copy API Key</button>
-            <button class="btn btn-ghost btn-sm" onclick="useThisKey()">Use this key in sidebar</button>
-          </div>
-        </div>
-      </div>
-
-      <div class="card">
-        <h3>What happens next</h3>
-        <ol style="font-size:13px;color:var(--muted);line-height:2;padding-left:18px">
-          <li>Copy your API Key (shown once)</li>
-          <li>Add it to the sidebar — all pages use it automatically</li>
-          <li>Send logs via <code style="color:var(--blue)">POST /api/v1/logs</code></li>
-          <li>Connect AWS / Azure on the <strong style="color:var(--text)">Cloud Integrations</strong> page</li>
-          <li>View AI insights and set up alerts</li>
-        </ol>
-        <hr class="divider" />
-        <h3>Quick Send Test Log</h3>
-        <p style="font-size:13px;color:var(--muted);margin-bottom:10px">After creating, click below to send a sample error log.</p>
-        <button class="btn btn-ghost btn-sm" onclick="sendTestLog()">⚡ Send Test Log</button>
-        <div id="ob-test-result" style="margin-top:10px;font-size:13px;color:var(--green)"></div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ── LOGS VIEWER ────────────────────────────────────────────────────── -->
-  <div id="page-logs" class="page">
-    <h2>Logs</h2>
-    <div class="card mb-16">
-      <div class="gap-8">
-        <select id="log-level" style="width:120px">
-          <option value="">All Levels</option>
-          <option value="ERROR">ERROR</option>
-          <option value="WARN">WARN</option>
-          <option value="INFO">INFO</option>
-          <option value="DEBUG">DEBUG</option>
-        </select>
-        <input id="log-service" type="text" placeholder="Service name filter" style="width:200px" />
-        <input id="log-start" type="datetime-local" style="width:200px" />
-        <input id="log-end" type="datetime-local" style="width:200px" />
-        <button class="btn btn-primary btn-sm" onclick="loadLogs(true)">🔍 Search</button>
-        <button class="btn btn-ghost btn-sm" onclick="clearLogFilters()">✕ Clear</button>
-      </div>
-    </div>
-    <div class="card">
-      <div id="log-table-wrap"><div class="empty-state">Enter your API key and click Search.</div></div>
-      <div class="pagination">
-        <button id="log-prev-btn" class="btn btn-ghost btn-sm" onclick="logPrev()" disabled>◀ Prev</button>
-        <span id="log-page-info" style="color:var(--muted)">Page 1</span>
-        <button id="log-next-btn" class="btn btn-ghost btn-sm" onclick="logNext()" disabled>Next ▶</button>
-        <span id="log-loading" style="display:none"><span class="spinner"></span></span>
-      </div>
-    </div>
-  </div>
-
-  <!-- ── INSIGHTS ───────────────────────────────────────────────────────── -->
-  <div id="page-insights" class="page">
-    <h2>AI Insights</h2>
-    <div class="card mb-16">
-      <div class="gap-8">
-        <label style="font-size:13px;color:var(--muted)">Lookback window:</label>
-        <select id="ins-window" style="width:160px">
-          <option value="15">Last 15 min</option>
-          <option value="30">Last 30 min</option>
-          <option value="60" selected>Last 1 hour</option>
-          <option value="360">Last 6 hours</option>
-          <option value="1440">Last 24 hours</option>
-        </select>
-        <button class="btn btn-primary btn-sm" onclick="loadInsights()">🧠 Analyse</button>
-        <span id="ins-loading" style="display:none"><span class="spinner"></span></span>
-      </div>
-    </div>
-    <div id="ins-result" style="display:none">
+    <!-- OVERVIEW -->
+    <div id="page-home" class="page active">
+      <div class="page-header"><h2>Overview</h2></div>
+      <div id="home-alert" class="alert-box info show">Enter your API key in the sidebar to load live data.</div>
       <div class="grid4 mb-16">
-        <div class="card"><div class="stat-val blue"  id="ins-total">—</div><div class="stat-lbl">Total Logs</div></div>
-        <div class="card"><div class="stat-val red"   id="ins-errors">—</div><div class="stat-lbl">Error Logs</div></div>
-        <div class="card"><div class="stat-val green" id="ins-svc">—</div><div class="stat-lbl">Top Service</div></div>
-        <div class="card"><div class="stat-val yellow"id="ins-errtype">—</div><div class="stat-lbl">Top Error Type</div></div>
+        <div class="stat-card"><div class="stat-bar cyan"></div><div class="stat-lbl">Total Logs (1 h)</div><div class="stat-val cyan" id="ov-total">&#8212;</div></div>
+        <div class="stat-card"><div class="stat-bar red"></div><div class="stat-lbl">Errors (1 h)</div><div class="stat-val red" id="ov-errors">&#8212;</div></div>
+        <div class="stat-card"><div class="stat-bar green"></div><div class="stat-lbl">Top Service</div><div class="stat-val green" id="ov-service" style="font-size:17px;word-break:break-all">&#8212;</div></div>
+        <div class="stat-card"><div class="stat-bar yellow"></div><div class="stat-lbl">Top Error Type</div><div class="stat-val yellow" id="ov-errtype" style="font-size:17px;word-break:break-all">&#8212;</div></div>
       </div>
+      <div class="grid2 mb-16">
+        <div class="card">
+          <div class="card-title">Root Cause Summary</div>
+          <p id="ov-rc" style="font-size:14px;line-height:1.75;color:var(--text-sub)">Load insights to see AI root-cause analysis.</p>
+          <p id="ov-sugg" style="margin-top:10px;font-size:13px;color:var(--muted)"></p>
+          <p id="ov-target-group" style="margin-top:10px;font-size:12px;color:var(--cyan)"></p>
+          <div id="ov-contrib-groups" class="gap-8 mt-16"></div>
+          <span id="ov-conf" style="display:inline-block;margin-top:12px" class="tag"></span>
+        </div>
+        <div class="card">
+          <div class="card-title">Quick Actions</div>
+          <div class="quick-actions">
+            <button class="btn btn-primary" onclick="loadOverview()">&#8634; Refresh Overview</button>
+            <button class="btn btn-ghost" onclick="navigateTo('page-insights')">Run AI Analysis</button>
+            <button class="btn btn-ghost" onclick="navigateTo('page-logs')">Browse Logs</button>
+            <button class="btn btn-ghost" onclick="navigateTo('page-integrations')">Manage Integrations</button>
+          </div>
+        </div>
+      </div>
+      <div class="card mb-16">
+        <div class="card-title">Top Error Groups (Last 1 h)</div>
+        <div class="table-wrap" id="ov-groups-wrap"><div class="empty-state">No grouped errors yet.</div></div>
+      </div>
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+          <div class="card-title" style="margin-bottom:0">Recent Errors</div>
+          <button class="btn btn-ghost btn-sm" onclick="loadOverview()">&#8635; Refresh</button>
+        </div>
+        <div class="table-wrap" id="ov-recent-wrap"><div class="empty-state">No data yet.</div></div>
+      </div>
+    </div>
+
+    <!-- NEW PROJECT -->
+    <div id="page-onboard" class="page">
+      <div class="page-header"><h2>New Project</h2></div>
+      <div class="grid2">
+        <div>
+          <div class="card">
+            <div class="card-title">Project Details</div>
+            <div id="ob-alert" class="alert-box"></div>
+            <div class="form-row"><label>Project Name *</label><input id="ob-name" type="text" placeholder="e.g. my-saas-backend" /></div>
+            <div class="form-row"><label>Description</label><input id="ob-desc" type="text" placeholder="Optional description" /></div>
+            <button class="btn btn-primary" onclick="createProject()">Create Project</button>
+          </div>
+          <div id="ob-result" class="card mt-16" style="display:none">
+            <div class="card-title">Project Created</div>
+            <p style="font-size:13px;color:var(--text-sub);margin-bottom:14px">Save your API key &mdash; it is shown only once.</p>
+            <div class="form-row"><label>Project ID</label><input id="ob-proj-id" type="text" readonly class="mono" /></div>
+            <div class="form-row"><label>API Key</label><input id="ob-api-key" type="text" readonly class="mono" /></div>
+            <div class="gap-8 mt-16">
+              <button class="btn btn-primary btn-sm" onclick="copyApiKey()">Copy API Key</button>
+              <button class="btn btn-ghost btn-sm" onclick="useThisKey()">Use in sidebar</button>
+            </div>
+            <hr class="divider" />
+            <div class="card-title">Quick Test</div>
+            <p style="font-size:13px;color:var(--text-sub);margin-bottom:10px">Send a sample error log to verify ingestion.</p>
+            <button class="btn btn-ghost btn-sm" onclick="sendTestLog()">Send Test Log</button>
+            <div id="ob-test-result" style="margin-top:10px;font-size:13px;color:var(--green)"></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">Getting Started</div>
+          <ol class="step-list">
+            <li>Copy your API Key (shown once after creation)</li>
+            <li>Paste it into the sidebar &mdash; all pages use it automatically</li>
+            <li>Send logs via <code style="color:var(--cyan);font-size:12px">POST /api/v1/logs</code></li>
+            <li>Connect AWS / Azure / GCP on the <strong style="color:var(--text)">Integrations</strong> page</li>
+            <li>View AI insights and configure Slack / Teams / email alerts</li>
+          </ol>
+        </div>
+      </div>
+    </div>
+
+    <!-- LOG EXPLORER -->
+    <div id="page-logs" class="page">
+      <div class="page-header"><h2>Log Explorer</h2></div>
+      <div class="card mb-16">
+        <div class="filter-bar">
+          <div class="form-row"><label>Level</label><select id="log-level" style="min-width:110px"><option value="">All Levels</option><option value="ERROR">ERROR</option><option value="WARN">WARN</option><option value="INFO">INFO</option><option value="DEBUG">DEBUG</option></select></div>
+          <div class="form-row" style="flex:2"><label>Service</label><input id="log-service" type="text" placeholder="Filter by service name" /></div>
+          <div class="form-row"><label>From</label><input id="log-start" type="datetime-local" /></div>
+          <div class="form-row"><label>To</label><input id="log-end" type="datetime-local" /></div>
+          <div class="btn-group" style="display:flex;gap:8px;align-self:flex-end">
+            <button class="btn btn-primary btn-sm" onclick="loadLogs(true)">Search</button>
+            <button class="btn btn-ghost btn-sm" onclick="clearLogFilters()">Clear</button>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="table-wrap" id="log-table-wrap"><div class="empty-state">Enter your API key and click Search.</div></div>
+        <div class="pagination">
+          <button id="log-prev-btn" class="btn btn-ghost btn-sm" onclick="logPrev()" disabled>&#9664; Prev</button>
+          <span id="log-page-info" style="color:var(--muted)">Page 1</span>
+          <button id="log-next-btn" class="btn btn-ghost btn-sm" onclick="logNext()" disabled>Next &#9654;</button>
+          <span id="log-loading" style="display:none"><span class="spinner"></span></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- AI INSIGHTS -->
+    <div id="page-insights" class="page">
+      <div class="page-header"><h2>AI Insights</h2></div>
+      <div class="card mb-16">
+        <div class="gap-12" style="align-items:flex-end">
+          <div class="form-row" style="margin-bottom:0">
+            <label>Lookback Window</label>
+            <select id="ins-window" style="width:168px">
+              <option value="15">Last 15 minutes</option>
+              <option value="30">Last 30 minutes</option>
+              <option value="60" selected>Last 1 hour</option>
+              <option value="360">Last 6 hours</option>
+              <option value="1440">Last 24 hours</option>
+            </select>
+          </div>
+          <div class="form-row" style="margin-bottom:0;min-width:220px">
+            <label>Analysis Mode</label>
+            <label style="display:flex;gap:8px;align-items:center;color:var(--text-sub);font-size:12px;cursor:pointer">
+              <input id="ins-deep" type="checkbox" style="width:16px;height:16px;accent-color:var(--cyan)" />
+              Deep analysis (slower, higher quality)
+            </label>
+          </div>
+          <button class="btn btn-primary" onclick="loadInsights()">Analyse</button>
+          <span id="ins-loading" style="display:none"><span class="spinner"></span></span>
+        </div>
+      </div>
+      <div id="ins-result" style="display:none">
+        <div class="grid4 mb-16">
+          <div class="stat-card"><div class="stat-bar cyan"></div><div class="stat-lbl">Total Logs</div><div class="stat-val cyan" id="ins-total">&#8212;</div></div>
+          <div class="stat-card"><div class="stat-bar red"></div><div class="stat-lbl">Error Logs</div><div class="stat-val red" id="ins-errors">&#8212;</div></div>
+          <div class="stat-card"><div class="stat-bar green"></div><div class="stat-lbl">Top Service</div><div class="stat-val green" id="ins-svc" style="font-size:16px;word-break:break-all">&#8212;</div></div>
+          <div class="stat-card"><div class="stat-bar yellow"></div><div class="stat-lbl">Top Error Type</div><div class="stat-val yellow" id="ins-errtype" style="font-size:16px;word-break:break-all">&#8212;</div></div>
+        </div>
+        <div class="card mb-16">
+          <div class="card-title">Top Error Groups</div>
+          <div class="table-wrap" id="ins-groups-wrap"><div class="empty-state">No grouped errors yet.</div></div>
+        </div>
+        <div class="card mb-16">
+          <div class="card-title">Incident Summary</div>
+          <p id="ins-summary" style="font-size:14px;line-height:1.8;color:var(--text-sub)"></p>
+          <p id="ins-target-group" style="margin-top:10px;font-size:12px;color:var(--cyan)"></p>
+          <div id="ins-contrib-groups" class="gap-8 mt-16"></div>
+        </div>
+        <div class="grid2 mb-16">
+          <div class="card">
+            <div class="card-title">Root Cause</div>
+            <p id="ins-rc" style="font-size:14px;line-height:1.75;color:var(--text-sub)"></p>
+            <div class="conf-bar-wrap">
+              <div class="conf-bar-header">
+                <span>AI Confidence</span>
+                <span id="ins-conf" style="color:var(--cyan);font-weight:600">&#8212;</span>
+              </div>
+              <div class="conf-bar-track"><div class="conf-bar-fill" id="ins-conf-bar" style="width:0%"></div></div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-title">Suggestion</div>
+            <p id="ins-sugg" style="font-size:14px;line-height:1.75;color:var(--text-sub)"></p>
+          </div>
+        </div>
+        <div class="card mb-16">
+          <div class="card-title">Action Plan</div>
+          <ol id="ins-action-plan" class="step-list"></ol>
+        </div>
+        <div class="card mb-16">
+          <div class="card-title">Notify From This Insight</div>
+          <div id="ins-notify-alert" class="alert-box"></div>
+          <div class="form-row"><label>Recipient Email *</label><input id="ins-notify-email" type="email" placeholder="e.g. owner@company.com" /></div>
+          <div class="form-row"><label>Error Group (optional)</label><select id="ins-notify-group"></select></div>
+          <div class="form-row"><label>Optional Note</label><textarea id="ins-notify-note" rows="3" placeholder="Any extra context to include in the email"></textarea></div>
+          <button class="btn btn-primary" onclick="notifyFromInsight()">Send Insight Notification</button>
+        </div>
+      </div>
+      <div id="ins-empty" class="empty-state">Select a window and click Analyse.</div>
+    </div>
+
+    <!-- CLOUD INTEGRATIONS -->
+    <div id="page-integrations" class="page">
+      <div class="page-header"><h2>Cloud Integrations</h2></div>
+      <div class="grid2 mb-16">
+        <div class="card">
+          <div class="card-title">Connect a Cloud Provider</div>
+          <div id="int-alert" class="alert-box"></div>
+          <div class="form-row"><label>Integration Name *</label><input id="int-name" type="text" placeholder="e.g. prod-aws-us-east-1" /></div>
+          <div class="form-row">
+            <label>Cloud Provider *</label>
+            <select id="int-provider">
+              <option value="aws">AWS</option>
+              <option value="azure">Azure</option>
+              <option value="gcp">GCP</option>
+            </select>
+          </div>
+          <div class="form-row">
+            <label>Service *</label>
+            <select id="int-service"></select>
+            <p class="form-hint">Appends a source hint to the webhook URL for accurate parser routing.</p>
+          </div>
+          <button class="btn btn-primary" onclick="createIntegration()">Connect</button>
+        </div>
+        <div class="card" id="int-setup-guide">
+          <div class="card-title">Setup Guide</div>
+          <div id="int-guide-aws">
+            <ol class="step-list">
+              <li>Go to <strong style="color:var(--text)">AWS SNS</strong> &rarr; Create Topic (Standard)</li>
+              <li>Add an <strong style="color:var(--text)">HTTP/S Subscription</strong> using the Webhook URL</li>
+              <li>The platform auto-confirms the SNS subscription</li>
+              <li>Route CloudWatch, CloudTrail, GuardDuty, RDS, Lambda, Security Hub, or EventBridge events through SNS to this webhook</li>
+            </ol>
+          </div>
+          <div id="int-guide-azure" style="display:none">
+            <ol class="step-list">
+              <li>Go to <strong style="color:var(--text)">Azure Monitor</strong> &rarr; Action Groups</li>
+              <li>Add a <strong style="color:var(--text)">Webhook</strong> action with the generated URL</li>
+              <li>Attach the Action Group to Monitor Alerts, Activity Log, App Insights, Service Health, Defender, AKS, or Event Grid</li>
+            </ol>
+          </div>
+          <div id="int-guide-gcp" style="display:none">
+            <ol class="step-list">
+              <li>Create a GCP notification channel or Pub/Sub push-to-webhook pipeline</li>
+              <li>Paste the generated URL (includes token + source hint) as the push endpoint</li>
+              <li>Connect Cloud Logging exports, Cloud Monitoring incidents, or Security Command Center findings</li>
+            </ol>
+          </div>
+        </div>
+      </div>
+      <div id="int-created-box" class="card mb-16" style="display:none">
+        <div class="card-title">Integration Created &mdash; configure your cloud with the details below</div>
+        <div class="grid2 mt-16">
+          <div class="form-row">
+            <label>Webhook URL (paste into your cloud service)</label>
+            <div class="gap-8">
+              <input id="int-wh-url" type="text" readonly style="flex:1;font-size:12px" class="mono" />
+              <button class="btn btn-ghost btn-sm" onclick="copyField('int-wh-url')">Copy</button>
+            </div>
+          </div>
+          <div class="form-row">
+            <label>Token (already embedded in URL above)</label>
+            <input id="int-wh-token" type="text" readonly class="mono" style="font-size:12px" />
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+          <div class="card-title" style="margin-bottom:0">Active Integrations</div>
+          <button class="btn btn-ghost btn-sm" onclick="loadIntegrations()">&#8635; Refresh</button>
+        </div>
+        <div class="table-wrap" id="int-table-wrap"><div class="empty-state">No integrations yet. Connect a cloud above.</div></div>
+      </div>
+    </div>
+
+    <!-- ALERTS -->
+    <div id="page-alerts" class="page">
+      <div class="page-header"><h2>Alerts</h2></div>
       <div class="grid2">
         <div class="card">
-          <h3>Root Cause</h3>
-          <p id="ins-rc" style="font-size:14px;line-height:1.7;"></p>
-          <div class="gap-8 mt-16">
-            <span class="tag">Confidence: <span id="ins-conf"></span></span>
+          <div class="card-title">Send a Test Alert</div>
+          <p style="font-size:13px;color:var(--text-sub);margin-bottom:16px">Verify your Slack / Teams / email settings. Configure webhook URLs and SMTP in your <code style="color:var(--cyan)">.env</code> file.</p>
+          <div id="al-alert" class="alert-box"></div>
+          <div class="form-row"><label>Title *</label><input id="al-title" type="text" placeholder="e.g. Payment service timeout spike" value="Test Alert from Dashboard" /></div>
+          <div class="form-row"><label>Message *</label><textarea id="al-msg" rows="3">Manually triggered test alert to verify channel delivery.</textarea></div>
+          <div class="form-row"><label>Recipient Email (optional)</label><input id="al-email-to" type="email" placeholder="e.g. owner@company.com" /></div>
+          <div class="form-row">
+            <label>Severity</label>
+            <select id="al-sev">
+              <option value="LOW">LOW</option>
+              <option value="MEDIUM" selected>MEDIUM</option>
+              <option value="HIGH">HIGH</option>
+              <option value="CRITICAL">CRITICAL</option>
+            </select>
           </div>
+          <button class="btn btn-primary" onclick="sendAlert()">Send Test Alert</button>
         </div>
-        <div class="card">
-          <h3>Suggestion</h3>
-          <p id="ins-sugg" style="font-size:14px;line-height:1.7;color:var(--muted)"></p>
-        </div>
-      </div>
-    </div>
-    <div id="ins-empty" class="empty-state">Select a window and click Analyse.</div>
-  </div>
-
-  <!-- ── CLOUD INTEGRATIONS ──────────────────────────────────────────────── -->
-  <div id="page-integrations" class="page">
-    <h2>Cloud Integrations</h2>
-    <div class="grid2">
-      <div class="card">
-        <h3>Connect a Cloud Provider</h3>
-        <div id="int-alert" class="alert-box"></div>
-        <div class="form-row">
-          <label>Integration Name *</label>
-          <input id="int-name" type="text" placeholder="e.g. prod-aws-us-east-1" />
-        </div>
-        <div class="form-row">
-          <label>Cloud Provider *</label>
-          <select id="int-provider">
-            <option value="aws">AWS</option>
-            <option value="azure">Azure</option>
-            <option value="gcp">GCP</option>
-          </select>
-        </div>
-        <div class="form-row">
-          <label>Service *</label>
-          <select id="int-service"></select>
-          <p style="font-size:12px;color:var(--muted);margin-top:8px">
-            Service selection appends a source hint in the webhook URL for explicit parser routing.
-          </p>
-        </div>
-        <button class="btn btn-primary" onclick="createIntegration()">⚡ Connect</button>
-      </div>
-
-      <div class="card" id="int-setup-guide">
-        <h3>Setup Guide</h3>
-        <div id="int-guide-aws">
-          <ol style="font-size:13px;color:var(--muted);line-height:2.1;padding-left:18px">
-            <li>Go to <strong style="color:var(--text)">AWS SNS</strong> → Create Topic (Standard)</li>
-            <li>Add an <strong style="color:var(--text)">HTTP/S Subscription</strong></li>
-            <li>Paste the <strong style="color:var(--text)">Webhook URL</strong> shown after connecting</li>
-            <li>Your app auto-confirms the subscription</li>
-            <li>Route AWS services (CloudWatch, CloudTrail, GuardDuty, RDS, Lambda, Security Hub, EventBridge) to SNS/EventBridge</li>
-            <li>Use the generated URL as the webhook target for selected AWS events</li>
-          </ol>
-        </div>
-        <div id="int-guide-azure" style="display:none">
-          <ol style="font-size:13px;color:var(--muted);line-height:2.1;padding-left:18px">
-            <li>Go to <strong style="color:var(--text)">Azure Monitor</strong> → Action Groups</li>
-            <li>Add a <strong style="color:var(--text)">Webhook</strong> action</li>
-            <li>Paste the <strong style="color:var(--text)">Webhook URL (with ?token=)</strong> shown after connecting</li>
-            <li>Attach Action Group/Event Grid for Monitor Alerts, Activity Log, App Insights, Service Health, Defender, AKS</li>
-            <li>Logs flow in automatically when alerts/events fire</li>
-          </ol>
-        </div>
-        <div id="int-guide-gcp" style="display:none">
-          <ol style="font-size:13px;color:var(--muted);line-height:2.1;padding-left:18px">
-            <li>Create a GCP alerting notification channel or Pub/Sub + push webhook pipeline</li>
-            <li>Paste the generated <strong style="color:var(--text)">Webhook URL (with token and source)</strong> as the target</li>
-            <li>Connect Cloud Logging, Cloud Monitoring, and Security Command Center exports</li>
-            <li>Logs and incidents flow into the platform for analysis</li>
-          </ol>
-        </div>
-      </div>
-    </div>
-
-    <div id="int-created-box" class="card mt-16" style="display:none">
-      <h3>✅ Integration Created — configure your cloud with these details</h3>
-      <div class="grid2 mt-16">
-        <div class="form-row">
-          <label>Webhook URL (paste into AWS SNS / Azure)</label>
-          <div class="gap-8">
-            <input id="int-wh-url" type="text" readonly style="flex:1" />
-            <button class="btn btn-ghost btn-sm" onclick="copyField('int-wh-url')">📋</button>
+        <div>
+          <div id="al-result-card" class="card mb-16" style="display:none">
+            <div class="card-title">Delivery Results</div>
+            <table>
+              <thead><tr><th>Channel</th><th>Status</th></tr></thead>
+              <tbody>
+                <tr><td>Slack</td><td><span id="al-slack"></span></td></tr>
+                <tr><td>Microsoft Teams</td><td><span id="al-teams"></span></td></tr>
+                <tr><td>Email (SMTP)</td><td><span id="al-email"></span></td></tr>
+              </tbody>
+            </table>
           </div>
-        </div>
-        <div class="form-row">
-          <label>Token (already included in URL above)</label>
-          <input id="int-wh-token" type="text" readonly />
-        </div>
-      </div>
-    </div>
-
-    <div class="card mt-16">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
-        <h3 style="margin:0">Active Integrations</h3>
-        <button class="btn btn-ghost btn-sm" onclick="loadIntegrations()">↻ Refresh</button>
-      </div>
-      <div id="int-table-wrap"><div class="empty-state">No integrations yet.</div></div>
-    </div>
-  </div>
-
-  <!-- ── ALERTS ──────────────────────────────────────────────────────────── -->
-  <div id="page-alerts" class="page">
-    <h2>Alerts</h2>
-    <div class="grid2">
-      <div class="card">
-        <h3>Send a Test Alert</h3>
-        <p style="font-size:13px;color:var(--muted);margin-bottom:16px">
-          Verify your Slack / Teams / email settings are working. Configure webhook URLs and SMTP in your server <code>.env</code> file.
-        </p>
-        <div id="al-alert" class="alert-box"></div>
-        <div class="form-row">
-          <label>Title *</label>
-          <input id="al-title" type="text" placeholder="e.g. Payment service timeout spike" value="Test Alert from Dashboard" />
-        </div>
-        <div class="form-row">
-          <label>Message *</label>
-          <textarea id="al-msg" rows="3" placeholder="Alert message body">Manually triggered test alert to verify channel delivery.</textarea>
-        </div>
-        <div class="form-row">
-          <label>Severity</label>
-          <select id="al-sev">
-            <option value="LOW">LOW</option>
-            <option value="MEDIUM" selected>MEDIUM</option>
-            <option value="HIGH">HIGH</option>
-            <option value="CRITICAL">CRITICAL</option>
-          </select>
-        </div>
-        <button class="btn btn-primary" onclick="sendAlert()">🔔 Send Test Alert</button>
-      </div>
-
-      <div class="card" id="al-result-card" style="display:none">
-        <h3>Delivery Results</h3>
-        <table>
-          <thead><tr><th>Channel</th><th>Status</th></tr></thead>
-          <tbody>
-            <tr><td>Slack</td><td><span id="al-slack"></span></td></tr>
-            <tr><td>Microsoft Teams</td><td><span id="al-teams"></span></td></tr>
-            <tr><td>Email (SMTP)</td><td><span id="al-email"></span></td></tr>
-          </tbody>
-        </table>
-        <hr class="divider" />
-        <h3>Configure in .env</h3>
-        <pre class="code-box">SLACK_WEBHOOK_URL=https://hooks.slack.com/services/...
+          <div class="card">
+            <div class="card-title">Configure in .env</div>
+            <pre class="code-box">SLACK_WEBHOOK_URL=https://hooks.slack.com/services/...
 TEAMS_WEBHOOK_URL=https://outlook.office.com/webhook/...
 ALERT_EMAIL_FROM=alerts@yourcompany.com
 ALERT_EMAIL_TO=oncall@yourcompany.com
@@ -448,48 +680,52 @@ SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
 SMTP_USERNAME=...
 SMTP_PASSWORD=...</pre>
+          </div>
+        </div>
       </div>
     </div>
-  </div>
 
-</main>
+  </div>
+</div>
 
 <script>
-// ═══════════════════════════════════════════════════════════════════════
-// Utilities
-// ═══════════════════════════════════════════════════════════════════════
-const API = '';  // same origin
+const API = '';
 let apiKey = '';
+var latestInsights = null;
 
 function getKey() {
   const k = document.getElementById('global-key').value.trim();
   apiKey = k;
+  const dot = document.getElementById('conn-dot');
+  if (dot) dot.className = 'conn-dot' + (k ? ' live' : '');
   return k;
 }
 
-async function apiFetch(path, opts = {}) {
+async function apiFetch(path, opts) {
+  opts = opts || {};
   const key = getKey();
-  const headers = { 'Content-Type': 'application/json', ...(opts.headers || {}) };
+  const headers = Object.assign({ 'Content-Type': 'application/json' }, opts.headers || {});
   if (key) headers['X-API-Key'] = key;
-  const res = await fetch(API + path, { ...opts, headers });
-  const body = await res.json().catch(() => ({}));
-  return { ok: res.ok, status: res.status, body };
+  const res = await fetch(API + path, Object.assign({}, opts, { headers }));
+  const body = await res.json().catch(function() { return {}; });
+  return { ok: res.ok, status: res.status, body: body };
 }
 
-function showAlert(id, msg, type = 'info') {
+function showAlert(id, msg, type) {
+  type = type || 'info';
   const el = document.getElementById(id);
   if (!el) return;
   el.textContent = msg;
-  el.className = `alert-box show ${type}`;
+  el.className = 'alert-box show ' + type;
 }
 function hideAlert(id) {
   const el = document.getElementById(id);
   if (el) el.className = 'alert-box';
 }
-
-function badgeLevel(level = '') {
+function badgeLevel(level) {
+  level = level || '';
   const map = { ERROR: 'badge-error', WARN: 'badge-warn', INFO: 'badge-info', DEBUG: 'badge-debug' };
-  return `<span class="badge ${map[level.toUpperCase()] || 'badge-info'}">${level}</span>`;
+  return '<span class="badge ' + (map[level.toUpperCase()] || 'badge-info') + '">' + level + '</span>';
 }
 function badgeStatus(active) {
   return active
@@ -497,314 +733,385 @@ function badgeStatus(active) {
     : '<span class="badge badge-inactive">inactive</span>';
 }
 function tsShort(ts) {
-  if (!ts) return '—';
+  if (!ts) return '&mdash;';
   return new Date(ts).toLocaleString();
 }
 function copyField(id) {
   const el = document.getElementById(id);
   if (!el) return;
-  navigator.clipboard.writeText(el.value).then(() => alert('Copied!'));
+  navigator.clipboard.writeText(el.value).then(function() { alert('Copied!'); });
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-// Navigation
-// ═══════════════════════════════════════════════════════════════════════
-document.querySelectorAll('#sidebar nav a').forEach(a => {
-  a.addEventListener('click', e => {
-    e.preventDefault();
-    document.querySelectorAll('#sidebar nav a').forEach(x => x.classList.remove('active'));
-    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-    a.classList.add('active');
-    document.getElementById(a.dataset.page).classList.add('active');
-    if (a.dataset.page === 'page-home') loadOverview();
-    if (a.dataset.page === 'page-logs') loadLogs(true);
-    if (a.dataset.page === 'page-integrations') loadIntegrations();
+/* Navigation */
+const PAGE_TITLES = {
+  'page-home':         'Overview',
+  'page-onboard':      'New Project',
+  'page-logs':         'Log Explorer',
+  'page-insights':     'AI Insights',
+  'page-integrations': 'Cloud Integrations',
+  'page-alerts':       'Alerts'
+};
+
+function navigateTo(pageId) {
+  document.querySelectorAll('#sidebar nav a').forEach(function(x) {
+    x.classList.toggle('active', x.dataset.page === pageId);
   });
+  document.querySelectorAll('.page').forEach(function(p) { p.classList.remove('active'); });
+  document.getElementById(pageId).classList.add('active');
+  document.getElementById('topbar-title').textContent = PAGE_TITLES[pageId] || '';
+  if (pageId === 'page-home')         loadOverview();
+  if (pageId === 'page-logs')         loadLogs(true);
+  if (pageId === 'page-integrations') loadIntegrations();
+}
+
+document.querySelectorAll('#sidebar nav a').forEach(function(a) {
+  a.addEventListener('click', function(e) { e.preventDefault(); navigateTo(a.dataset.page); });
 });
 
-// Update guide when provider changes
-document.getElementById('int-provider').addEventListener('change', function () {
+/* Integration provider / service */
+document.getElementById('int-provider').addEventListener('change', function() {
   updateIntegrationProviderUI(this.value);
 });
 
-const INTEGRATION_SERVICES = {
+var INTEGRATION_SERVICES = {
   aws: [
-    { value: 'cloudwatch', label: 'CloudWatch (Alarms / Logs)' },
-    { value: 'cloudtrail', label: 'CloudTrail' },
-    { value: 'guardduty', label: 'GuardDuty' },
-    { value: 'rds', label: 'RDS Events' },
-    { value: 'lambda', label: 'Lambda Events' },
+    { value: 'cloudwatch',   label: 'CloudWatch (Alarms / Logs)' },
+    { value: 'cloudtrail',   label: 'CloudTrail' },
+    { value: 'guardduty',    label: 'GuardDuty' },
+    { value: 'rds',          label: 'RDS Events' },
+    { value: 'lambda',       label: 'Lambda Events' },
     { value: 'security_hub', label: 'Security Hub' },
-    { value: 'eventbridge', label: 'EventBridge Events' },
+    { value: 'eventbridge',  label: 'EventBridge Events' }
   ],
   azure: [
-    { value: 'azure_monitor', label: 'Monitor Alerts (Action Group)' },
-    { value: 'activity_log', label: 'Activity Log' },
-    { value: 'app_insights', label: 'Application Insights' },
+    { value: 'azure_monitor',  label: 'Monitor Alerts (Action Group)' },
+    { value: 'activity_log',   label: 'Activity Log' },
+    { value: 'app_insights',   label: 'Application Insights' },
     { value: 'service_health', label: 'Service Health' },
-    { value: 'defender', label: 'Defender for Cloud' },
-    { value: 'aks', label: 'AKS Events' },
-    { value: 'event_grid', label: 'Event Grid' },
+    { value: 'defender',       label: 'Defender for Cloud' },
+    { value: 'aks',            label: 'AKS Events' },
+    { value: 'event_grid',     label: 'Event Grid' }
   ],
   gcp: [
-    { value: 'gcp_logging', label: 'Cloud Logging' },
-    { value: 'gcp_monitoring', label: 'Cloud Monitoring' },
-    { value: 'security_command_center', label: 'Security Command Center' },
-  ],
+    { value: 'gcp_logging',             label: 'Cloud Logging' },
+    { value: 'gcp_monitoring',          label: 'Cloud Monitoring' },
+    { value: 'security_command_center', label: 'Security Command Center' }
+  ]
 };
 
 function updateIntegrationProviderUI(provider) {
-  document.getElementById('int-guide-aws').style.display = provider === 'aws' ? '' : 'none';
+  document.getElementById('int-guide-aws').style.display   = provider === 'aws'   ? '' : 'none';
   document.getElementById('int-guide-azure').style.display = provider === 'azure' ? '' : 'none';
-  document.getElementById('int-guide-gcp').style.display = provider === 'gcp' ? '' : 'none';
-
-  const serviceSelect = document.getElementById('int-service');
-  const services = INTEGRATION_SERVICES[provider] || [];
-  serviceSelect.innerHTML = services
-    .map(s => `<option value="${s.value}">${s.label}</option>`)
-    .join('');
+  document.getElementById('int-guide-gcp').style.display   = provider === 'gcp'   ? '' : 'none';
+  var sel = document.getElementById('int-service');
+  sel.innerHTML = (INTEGRATION_SERVICES[provider] || [])
+    .map(function(s) { return '<option value="' + s.value + '">' + s.label + '</option>'; }).join('');
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-// Overview
-// ═══════════════════════════════════════════════════════════════════════
+/* Overview */
 async function loadOverview() {
   if (!getKey()) { showAlert('home-alert', 'Enter your API key in the sidebar.', 'info'); return; }
   hideAlert('home-alert');
-  const { ok, body } = await apiFetch('/api/v1/insights?lookback_minutes=60');
-  if (!ok) { showAlert('home-alert', body.detail || 'Failed to load insights.', 'error'); return; }
-
-  document.getElementById('ov-total').textContent   = body.total_logs ?? '—';
-  document.getElementById('ov-errors').textContent  = body.error_logs ?? '—';
-  document.getElementById('ov-service').textContent = body.top_service || '—';
-  document.getElementById('ov-errtype').textContent = body.top_error_type || '—';
-  document.getElementById('ov-rc').textContent      = body.root_cause || '—';
+  var r = await apiFetch('/api/v1/insights?lookback_minutes=60');
+  if (!r.ok) { showAlert('home-alert', r.body.detail || 'Failed to load insights.', 'error'); return; }
+  var body = r.body;
+  document.getElementById('ov-total').textContent   = body.total_logs != null ? body.total_logs : '&mdash;';
+  document.getElementById('ov-errors').textContent  = body.error_logs != null ? body.error_logs : '&mdash;';
+  document.getElementById('ov-service').textContent = body.top_service || '&mdash;';
+  document.getElementById('ov-errtype').textContent = body.top_error_type || '&mdash;';
+  document.getElementById('ov-rc').textContent      = body.root_cause || '&mdash;';
   document.getElementById('ov-sugg').textContent    = body.suggestion || '';
+  document.getElementById('ov-target-group').textContent = body.target_error_group
+    ? 'Fix target group: ' + formatGroupLabel(body.target_error_group)
+    : 'Fix target group: not identified';
+  document.getElementById('ov-contrib-groups').innerHTML = renderContributingGroupTags(body.contributing_error_groups || []);
   document.getElementById('ov-conf').textContent    = body.confidence != null
-    ? `Confidence: ${(body.confidence * 100).toFixed(0)}%` : '';
-
-  // recent errors table
-  const lr = await apiFetch('/api/v1/logs?level=ERROR&limit=5');
-  const wrap = document.getElementById('ov-recent-wrap');
-  if (!lr.ok || !lr.body.items?.length) {
-    wrap.innerHTML = '<div class="empty-state">No recent errors.</div>'; return;
-  }
+    ? 'Confidence: ' + (body.confidence * 100).toFixed(0) + '%' : '';
+  document.getElementById('ov-groups-wrap').innerHTML = renderErrorGroups(body.error_groups || []);
+  var lr = await apiFetch('/api/v1/logs?level=ERROR&limit=5');
+  var wrap = document.getElementById('ov-recent-wrap');
+  if (!lr.ok || !lr.body.items || !lr.body.items.length) { wrap.innerHTML = '<div class="empty-state">No recent errors.</div>'; return; }
   wrap.innerHTML = renderLogTable(lr.body.items);
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-// Project creation
-// ═══════════════════════════════════════════════════════════════════════
+/* Project creation */
 async function createProject() {
-  const name = document.getElementById('ob-name').value.trim();
-  const desc = document.getElementById('ob-desc').value.trim();
+  var name = document.getElementById('ob-name').value.trim();
+  var desc = document.getElementById('ob-desc').value.trim();
   if (!name) { showAlert('ob-alert', 'Project name is required.', 'error'); return; }
   hideAlert('ob-alert');
-  const { ok, body } = await apiFetch('/api/v1/projects', {
-    method: 'POST', body: JSON.stringify({ name, description: desc || null })
-  });
-  if (!ok) { showAlert('ob-alert', body.detail || 'Failed to create project.', 'error'); return; }
-  document.getElementById('ob-proj-id').value = body.project_id;
-  document.getElementById('ob-api-key').value = body.api_key;
+  var r = await apiFetch('/api/v1/projects', { method: 'POST', body: JSON.stringify({ name: name, description: desc || null }) });
+  if (!r.ok) { showAlert('ob-alert', r.body.detail || 'Failed to create project.', 'error'); return; }
+  document.getElementById('ob-proj-id').value = r.body.project_id;
+  document.getElementById('ob-api-key').value = r.body.api_key;
   document.getElementById('ob-result').style.display = '';
   showAlert('ob-alert', 'Project created successfully!', 'success');
 }
 function copyApiKey() {
-  const v = document.getElementById('ob-api-key').value;
-  navigator.clipboard.writeText(v).then(() => alert('API key copied!'));
+  navigator.clipboard.writeText(document.getElementById('ob-api-key').value).then(function() { alert('API key copied!'); });
 }
 function useThisKey() {
-  const v = document.getElementById('ob-api-key').value;
+  var v = document.getElementById('ob-api-key').value;
   document.getElementById('global-key').value = v;
-  apiKey = v;
+  apiKey = v; getKey();
   alert('Key applied to sidebar. All requests will now use it.');
 }
 async function sendTestLog() {
-  const key = document.getElementById('ob-api-key').value;
+  var key = document.getElementById('ob-api-key').value;
   if (!key) { document.getElementById('ob-test-result').textContent = 'Create a project first.'; return; }
-  const res = await fetch('/api/v1/logs', {
+  var res = await fetch('/api/v1/logs', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-API-Key': key },
     body: JSON.stringify({ logs: [{ service_name: 'dashboard-test', operation: 'send_test', level: 'ERROR', status: 'error', message: 'Test error from dashboard onboarding', error_type: 'TestError', source: 'dashboard' }] })
   });
-  const b = await res.json().catch(() => ({}));
-  document.getElementById('ob-test-result').textContent = res.ok
-    ? `✅ ${b.accepted} log accepted.` : `❌ ${b.detail || 'Failed'}`;
+  var b = await res.json().catch(function() { return {}; });
+  document.getElementById('ob-test-result').textContent = res.ok ? 'Accepted: ' + b.accepted + ' log.' : 'Failed: ' + (b.detail || 'error');
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-// Logs
-// ═══════════════════════════════════════════════════════════════════════
-let logCursorStack = [null]; // stack[0] = first page (no cursor)
-let logPage = 0;
+/* Logs */
+var logCursorStack = [null];
+var logPage = 0;
 
 function renderLogTable(items) {
   if (!items.length) return '<div class="empty-state">No logs found.</div>';
-  return `<table>
-    <thead><tr><th>Time</th><th>Level</th><th>Service</th><th>Operation</th><th>Message</th><th>Error Type</th><th>Correlation ID</th></tr></thead>
-    <tbody>${items.map(r => `<tr>
-      <td style="white-space:nowrap;font-size:12px">${tsShort(r.created_at)}</td>
-      <td>${badgeLevel(r.level)}</td>
-      <td><span class="tag">${r.service_name || '—'}</span></td>
-      <td style="font-size:12px">${r.operation || '—'}</td>
-      <td class="msg-cell" title="${(r.message || '').replace(/"/g, '&quot;')}">${r.message || '—'}</td>
-      <td style="font-size:12px;color:var(--red)">${r.error_type || '—'}</td>
-      <td style="font-size:11px;color:var(--muted)">${r.correlation_id || '—'}</td>
-    </tr>`).join('')}</tbody>
-  </table>`;
+  var rows = items.map(function(r) {
+    return '<tr>'
+      + '<td style="white-space:nowrap;font-size:11.5px;color:var(--muted)">' + tsShort(r.created_at) + '</td>'
+      + '<td>' + badgeLevel(r.level) + '</td>'
+      + '<td><span class="tag">' + (r.service_name || '&mdash;') + '</span></td>'
+      + '<td style="font-size:12px;color:var(--text-sub)">' + (r.operation || '&mdash;') + '</td>'
+      + '<td class="msg-cell" title="' + (r.message || '').replace(/"/g, '&quot;') + '">' + (r.message || '&mdash;') + '</td>'
+      + '<td style="font-size:12px;color:var(--red)">' + (r.error_type || '&mdash;') + '</td>'
+      + '<td style="font-size:11px;color:var(--muted);font-family:monospace">' + (r.correlation_id || '&mdash;') + '</td>'
+      + '</tr>';
+  }).join('');
+  return '<table><thead><tr><th>Time</th><th>Level</th><th>Service</th><th>Operation</th><th>Message</th><th>Error Type</th><th>Correlation ID</th></tr></thead><tbody>' + rows + '</tbody></table>';
 }
 
-async function loadLogs(reset = false) {
+function renderErrorGroups(groups) {
+  if (!Array.isArray(groups) || !groups.length) return '<div class="empty-state">No grouped errors in this window.</div>';
+  var rows = groups.map(function(g) {
+    return '<tr>'
+      + '<td><span class="tag">' + (g.service_name || '&mdash;') + '</span></td>'
+      + '<td style="color:var(--red);font-size:12px">' + (g.error_type || '&mdash;') + '</td>'
+      + '<td style="font-size:12px;color:var(--text-sub)">' + (g.operation || '&mdash;') + '</td>'
+      + '<td><span class="badge badge-error">' + (g.count || 0) + '</span></td>'
+      + '<td style="white-space:nowrap;font-size:11.5px;color:var(--muted)">' + tsShort(g.last_seen) + '</td>'
+      + '</tr>';
+  }).join('');
+  return '<table><thead><tr><th>Service</th><th>Error Type</th><th>Operation</th><th>Count</th><th>Last Seen</th></tr></thead><tbody>' + rows + '</tbody></table>';
+}
+
+function formatGroupLabel(group) {
+  if (!group) return '&mdash;';
+  return (group.service_name || 'unknown-service') + ' / ' + (group.error_type || 'UnhandledError') + ' / ' + (group.operation || 'unknown-operation');
+}
+
+function renderContributingGroupTags(groups) {
+  if (!Array.isArray(groups) || !groups.length) return '<span class="tag">No dependent groups detected</span>';
+  return groups.map(function(g) {
+    var label = formatGroupLabel(g);
+    var shared = g.shared_correlation_count || 0;
+    return '<span class="tag">' + label + ' (shared corr: ' + shared + ')</span>';
+  }).join('');
+}
+
+function populateNotifyGroups(body) {
+  var sel = document.getElementById('ins-notify-group');
+  if (!sel) return;
+  var groups = Array.isArray(body && body.error_groups) ? body.error_groups : [];
+  var opts = ['<option value="">Auto (target error group)</option>'];
+  groups.forEach(function(g, idx) {
+    opts.push('<option value="' + idx + '">' + formatGroupLabel(g) + '</option>');
+  });
+  sel.innerHTML = opts.join('');
+}
+
+async function loadLogs(reset) {
   if (reset) { logCursorStack = [null]; logPage = 0; }
   if (!getKey()) { document.getElementById('log-table-wrap').innerHTML = '<div class="empty-state">Enter your API key in the sidebar.</div>'; return; }
-
   document.getElementById('log-loading').style.display = '';
-  const level   = document.getElementById('log-level').value;
-  const service = document.getElementById('log-service').value.trim();
-  const start   = document.getElementById('log-start').value;
-  const end     = document.getElementById('log-end').value;
-
-  let url = '/api/v1/logs?limit=20';
-  if (level)   url += `&level=${encodeURIComponent(level)}`;
-  if (service) url += `&service_name=${encodeURIComponent(service)}`;
-  if (start)   url += `&start_time=${encodeURIComponent(new Date(start).toISOString())}`;
-  if (end)     url += `&end_time=${encodeURIComponent(new Date(end).toISOString())}`;
-  const cursor = logCursorStack[logPage];
-  if (cursor)  url += `&cursor=${encodeURIComponent(cursor)}`;
-
-  const { ok, body } = await apiFetch(url);
+  var level   = document.getElementById('log-level').value;
+  var service = document.getElementById('log-service').value.trim();
+  var start   = document.getElementById('log-start').value;
+  var end     = document.getElementById('log-end').value;
+  var url = '/api/v1/logs?limit=20';
+  if (level)   url += '&level=' + encodeURIComponent(level);
+  if (service) url += '&service_name=' + encodeURIComponent(service);
+  if (start)   url += '&start_time=' + encodeURIComponent(new Date(start).toISOString());
+  if (end)     url += '&end_time=' + encodeURIComponent(new Date(end).toISOString());
+  var cursor = logCursorStack[logPage];
+  if (cursor)  url += '&cursor=' + encodeURIComponent(cursor);
+  var r = await apiFetch(url);
   document.getElementById('log-loading').style.display = 'none';
-  if (!ok) { document.getElementById('log-table-wrap').innerHTML = '<div class="empty-state">Failed to load logs.</div>'; return; }
-
-  document.getElementById('log-table-wrap').innerHTML = renderLogTable(body.items || []);
-
-  // maintain cursor stack for pagination
-  if (body.next_cursor && logCursorStack.length === logPage + 1) {
-    logCursorStack.push(body.next_cursor);
-  }
-
+  if (!r.ok) { document.getElementById('log-table-wrap').innerHTML = '<div class="empty-state">Failed to load logs.</div>'; return; }
+  document.getElementById('log-table-wrap').innerHTML = renderLogTable(r.body.items || []);
+  if (r.body.next_cursor && logCursorStack.length === logPage + 1) logCursorStack.push(r.body.next_cursor);
   document.getElementById('log-prev-btn').disabled = logPage === 0;
-  document.getElementById('log-next-btn').disabled = !body.next_cursor;
-  document.getElementById('log-page-info').textContent = `Page ${logPage + 1}`;
+  document.getElementById('log-next-btn').disabled = !r.body.next_cursor;
+  document.getElementById('log-page-info').textContent = 'Page ' + (logPage + 1);
 }
-
-function logNext() { logPage++; loadLogs(); }
-function logPrev() { if (logPage > 0) { logPage--; loadLogs(); } }
+function logNext() { logPage++; loadLogs(false); }
+function logPrev() { if (logPage > 0) { logPage--; loadLogs(false); } }
 function clearLogFilters() {
-  ['log-level', 'log-service', 'log-start', 'log-end'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el.tagName === 'SELECT') el.value = ''; else el.value = '';
-  });
+  ['log-level', 'log-service', 'log-start', 'log-end'].forEach(function(id) { document.getElementById(id).value = ''; });
   loadLogs(true);
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-// Insights
-// ═══════════════════════════════════════════════════════════════════════
+/* Insights */
 async function loadInsights() {
-  if (!getKey()) { return; }
-  const w = document.getElementById('ins-window').value;
+  if (!getKey()) return;
+  var w = document.getElementById('ins-window').value;
+  var deep = !!document.getElementById('ins-deep').checked;
   document.getElementById('ins-loading').style.display = '';
   document.getElementById('ins-empty').style.display = 'none';
   document.getElementById('ins-result').style.display = 'none';
-
-  const { ok, body } = await apiFetch(`/api/v1/insights?lookback_minutes=${w}`);
+  var r = await apiFetch('/api/v1/insights?lookback_minutes=' + w + '&deep_analysis=' + (deep ? 'true' : 'false'));
   document.getElementById('ins-loading').style.display = 'none';
-
-  if (!ok) { document.getElementById('ins-empty').textContent = body.detail || 'Failed.'; document.getElementById('ins-empty').style.display = ''; return; }
-
-  document.getElementById('ins-total').textContent   = body.total_logs ?? '—';
-  document.getElementById('ins-errors').textContent  = body.error_logs ?? '—';
-  document.getElementById('ins-svc').textContent     = body.top_service || '—';
-  document.getElementById('ins-errtype').textContent = body.top_error_type || '—';
-  document.getElementById('ins-rc').textContent      = body.root_cause || '—';
-  document.getElementById('ins-sugg').textContent    = body.suggestion || '—';
-  document.getElementById('ins-conf').textContent    = body.confidence != null
-    ? `${(body.confidence * 100).toFixed(0)}%` : '—';
+  if (!r.ok) {
+    document.getElementById('ins-empty').textContent = r.body.detail || 'Failed.';
+    document.getElementById('ins-empty').style.display = '';
+    return;
+  }
+  var body = r.body;
+  latestInsights = body;
+  document.getElementById('ins-total').textContent   = body.total_logs != null ? body.total_logs : '&mdash;';
+  document.getElementById('ins-errors').textContent  = body.error_logs != null ? body.error_logs : '&mdash;';
+  document.getElementById('ins-svc').textContent     = body.top_service || '&mdash;';
+  document.getElementById('ins-errtype').textContent = body.top_error_type || '&mdash;';
+  document.getElementById('ins-rc').textContent      = body.root_cause || '&mdash;';
+  document.getElementById('ins-sugg').textContent    = body.suggestion || '&mdash;';
+  document.getElementById('ins-summary').textContent = body.incident_summary || '&mdash;';
+  document.getElementById('ins-target-group').textContent = body.target_error_group
+    ? 'Fix target group: ' + formatGroupLabel(body.target_error_group)
+    : 'Fix target group: not identified';
+  document.getElementById('ins-contrib-groups').innerHTML = renderContributingGroupTags(body.contributing_error_groups || []);
+  document.getElementById('ins-groups-wrap').innerHTML = renderErrorGroups(body.error_groups || []);
+  var apEl = document.getElementById('ins-action-plan');
+  apEl.innerHTML = '';
+  if (Array.isArray(body.action_plan) && body.action_plan.length) {
+    body.action_plan.forEach(function(step) {
+      var li = document.createElement('li'); li.textContent = step; apEl.appendChild(li);
+    });
+  } else {
+    apEl.innerHTML = '<li>No action plan returned.</li>';
+  }
+  var conf = body.confidence;
+  document.getElementById('ins-conf').textContent = conf != null ? (conf * 100).toFixed(0) + '%' : '&mdash;';
+  var bar = document.getElementById('ins-conf-bar');
+  if (bar && conf != null) bar.style.width = Math.round(conf * 100) + '%';
+  populateNotifyGroups(body);
   document.getElementById('ins-result').style.display = '';
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-// Cloud Integrations
-// ═══════════════════════════════════════════════════════════════════════
+async function notifyFromInsight() {
+  var email = document.getElementById('ins-notify-email').value.trim();
+  var note = document.getElementById('ins-notify-note').value.trim();
+  var groupIndex = document.getElementById('ins-notify-group').value;
+  var lookback = document.getElementById('ins-window').value;
+  var deep = !!document.getElementById('ins-deep').checked;
+  if (!email) { showAlert('ins-notify-alert', 'Recipient email is required.', 'error'); return; }
+  if (!getKey()) { showAlert('ins-notify-alert', 'Enter your API key in the sidebar.', 'error'); return; }
+  if (!latestInsights) { showAlert('ins-notify-alert', 'Run Analyse first to generate insight context.', 'error'); return; }
+
+  var payload = {
+    recipient_email: email,
+    lookback_minutes: Number(lookback),
+    deep_analysis: deep,
+    note: note || null,
+    severity: 'HIGH'
+  };
+
+  if (groupIndex !== '' && Array.isArray(latestInsights.error_groups) && latestInsights.error_groups[Number(groupIndex)]) {
+    var g = latestInsights.error_groups[Number(groupIndex)];
+    payload.target_service_name = g.service_name;
+    payload.target_error_type = g.error_type;
+    payload.target_operation = g.operation;
+  }
+
+  hideAlert('ins-notify-alert');
+  var res = await apiFetch('/api/v1/alerts/insights/notify', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+
+  if (!res.ok) {
+    showAlert('ins-notify-alert', res.body.detail || 'Failed to send insight notification.', 'error');
+    return;
+  }
+
+  if (res.body.email) {
+    showAlert('ins-notify-alert', 'Insight notification sent to ' + res.body.recipient_email + '.', 'success');
+  } else {
+    showAlert('ins-notify-alert', (res.body.message || 'Notification was not delivered.') + ' Check SMTP settings.', 'error');
+  }
+}
+
+/* Cloud Integrations */
 async function createIntegration() {
-  const name     = document.getElementById('int-name').value.trim();
-  const provider = document.getElementById('int-provider').value;
-  const service  = document.getElementById('int-service').value;
+  var name     = document.getElementById('int-name').value.trim();
+  var provider = document.getElementById('int-provider').value;
+  var service  = document.getElementById('int-service').value;
   if (!name) { showAlert('int-alert', 'Name is required.', 'error'); return; }
   if (!getKey()) { showAlert('int-alert', 'Enter your API key in the sidebar.', 'error'); return; }
   hideAlert('int-alert');
-
-  const { ok, body } = await apiFetch('/api/v1/integrations', {
-    method: 'POST', body: JSON.stringify({ name, provider })
-  });
-  if (!ok) { showAlert('int-alert', body.detail || 'Failed to create integration.', 'error'); return; }
-
-  let webhookWithToken = `${body.webhook_url}?token=${body.webhook_token}`;
-  if (service) webhookWithToken += `&source=${encodeURIComponent(service)}`;
+  var r = await apiFetch('/api/v1/integrations', { method: 'POST', body: JSON.stringify({ name: name, provider: provider }) });
+  if (!r.ok) { showAlert('int-alert', r.body.detail || 'Failed to create integration.', 'error'); return; }
+  var webhookWithToken = r.body.webhook_url + '?token=' + r.body.webhook_token;
+  if (service) webhookWithToken += '&source=' + encodeURIComponent(service);
   document.getElementById('int-wh-url').value   = webhookWithToken;
-  document.getElementById('int-wh-token').value = body.webhook_token;
+  document.getElementById('int-wh-token').value = r.body.webhook_token;
   document.getElementById('int-created-box').style.display = '';
-  showAlert('int-alert', `Integration created for ${provider.toUpperCase()} / ${service}. Configure your cloud with the webhook URL below.`, 'success');
+  showAlert('int-alert', 'Integration created for ' + provider.toUpperCase() + ' / ' + service + '. Configure your cloud with the webhook URL below.', 'success');
   loadIntegrations();
 }
 
 async function loadIntegrations() {
   if (!getKey()) return;
-  const { ok, body } = await apiFetch('/api/v1/integrations');
-  const wrap = document.getElementById('int-table-wrap');
-  if (!ok || !body.items?.length) {
-    wrap.innerHTML = '<div class="empty-state">No integrations yet. Connect a cloud above.</div>'; return;
-  }
-  wrap.innerHTML = `<table>
-    <thead><tr><th>Name</th><th>Provider</th><th>Status</th><th>Created</th><th>Action</th></tr></thead>
-    <tbody>${body.items.map(r => `<tr>
-      <td>${r.name}</td>
-      <td><span class="tag">${r.provider.toUpperCase()}</span></td>
-      <td>${badgeStatus(r.status === 'active')}</td>
-      <td style="font-size:12px">${tsShort(r.created_at)}</td>
-      <td><button class="btn btn-danger btn-sm" onclick="deleteIntegration('${r.id}')">Delete</button></td>
-    </tr>`).join('')}</tbody>
-  </table>`;
+  var r = await apiFetch('/api/v1/integrations');
+  var wrap = document.getElementById('int-table-wrap');
+  if (!r.ok || !r.body.items || !r.body.items.length) { wrap.innerHTML = '<div class="empty-state">No integrations yet. Connect a cloud above.</div>'; return; }
+  var rows = r.body.items.map(function(item) {
+    return '<tr>'
+      + '<td style="font-weight:500">' + item.name + '</td>'
+      + '<td><span class="tag tag-' + item.provider + '">' + item.provider.toUpperCase() + '</span></td>'
+      + '<td>' + badgeStatus(item.status === 'active') + '</td>'
+      + '<td style="font-size:12px;color:var(--muted)">' + tsShort(item.created_at) + '</td>'
+      + '<td><button class="btn btn-danger btn-sm" onclick="deleteIntegration(\'' + item.id + '\')">Delete</button></td>'
+      + '</tr>';
+  }).join('');
+  wrap.innerHTML = '<table><thead><tr><th>Name</th><th>Provider</th><th>Status</th><th>Created</th><th></th></tr></thead><tbody>' + rows + '</tbody></table>';
 }
 
 async function deleteIntegration(id) {
   if (!confirm('Delete this integration? The cloud will stop sending logs.')) return;
-  const { ok } = await apiFetch(`/api/v1/integrations/${id}`, { method: 'DELETE' });
-  if (ok) loadIntegrations();
+  var r = await apiFetch('/api/v1/integrations/' + id, { method: 'DELETE' });
+  if (r.ok) loadIntegrations();
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-// Alerts
-// ═══════════════════════════════════════════════════════════════════════
+/* Alerts */
 async function sendAlert() {
-  const title = document.getElementById('al-title').value.trim();
-  const msg   = document.getElementById('al-msg').value.trim();
-  const sev   = document.getElementById('al-sev').value;
+  var title = document.getElementById('al-title').value.trim();
+  var msg   = document.getElementById('al-msg').value.trim();
+  var sev   = document.getElementById('al-sev').value;
+  var recipient = document.getElementById('al-email-to').value.trim();
   if (!title || !msg) { showAlert('al-alert', 'Title and message are required.', 'error'); return; }
   if (!getKey()) { showAlert('al-alert', 'Enter your API key in the sidebar.', 'error'); return; }
   hideAlert('al-alert');
-
-  const { ok, body } = await apiFetch('/api/v1/alerts/test', {
-    method: 'POST', body: JSON.stringify({ title, message: msg, severity: sev })
-  });
-  if (!ok) { showAlert('al-alert', body.detail || 'Request failed.', 'error'); return; }
-
+  var r = await apiFetch('/api/v1/alerts/test', { method: 'POST', body: JSON.stringify({ title: title, message: msg, severity: sev, recipient_email: recipient || null }) });
+  if (!r.ok) { showAlert('al-alert', r.body.detail || 'Request failed.', 'error'); return; }
   function deliverBadge(v) {
-    return v
-      ? '<span class="badge badge-active">✅ Delivered</span>'
-      : '<span class="badge badge-inactive">❌ Not configured</span>';
+    return v ? '<span class="badge badge-active">Delivered</span>' : '<span class="badge badge-inactive">Not configured</span>';
   }
-  document.getElementById('al-slack').innerHTML = deliverBadge(body.slack);
-  document.getElementById('al-teams').innerHTML = deliverBadge(body.teams);
-  document.getElementById('al-email').innerHTML = deliverBadge(body.email);
+  document.getElementById('al-slack').innerHTML = deliverBadge(r.body.slack);
+  document.getElementById('al-teams').innerHTML = deliverBadge(r.body.teams);
+  document.getElementById('al-email').innerHTML = deliverBadge(r.body.email);
   document.getElementById('al-result-card').style.display = '';
   showAlert('al-alert', 'Alert sent. See delivery results.', 'success');
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-// Boot
-// ═══════════════════════════════════════════════════════════════════════
+/* Boot */
+document.getElementById('global-key').addEventListener('input', function() { getKey(); });
 document.getElementById('global-key').addEventListener('change', loadOverview);
 updateIntegrationProviderUI(document.getElementById('int-provider').value);
 </script>

@@ -13,10 +13,16 @@ router = APIRouter(prefix="/insights", tags=["insights"])
 @router.get("", response_model=InsightsResponse)
 def get_insights(
     lookback_minutes: int = Query(default=60, ge=5, le=1440),
+    deep_analysis: bool = Query(default=False),
     auth: AuthContext = Depends(require_api_key),
     db: Session = Depends(get_db),
 ) -> InsightsResponse:
-    return build_insights(db=db, project_id=auth.project_id, lookback_minutes=lookback_minutes)
+    return build_insights(
+        db=db,
+        project_id=auth.project_id,
+        lookback_minutes=lookback_minutes,
+        deep_analysis=deep_analysis,
+    )
 
 
 @router.post("/feedback", response_model=InsightFeedbackResponse, status_code=status.HTTP_201_CREATED)
