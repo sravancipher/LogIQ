@@ -7,3 +7,5 @@ Company/__pycache__/app.cpython-314.pyc
 Company/__pycache__/company_app.cpython-314.pyc
 # AI-Powered Monitoring & Auto-Debugging.md
 # AI-Powered Monitoring & Auto-Debugging.md
+backend/app/core/__pycache__/config.cpython-314.pyc
+backend/app/services/__pycache__/insights_service.cpython-314.pyc

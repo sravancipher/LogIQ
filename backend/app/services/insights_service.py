@@ -7,6 +7,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import requests
+from requests import Response
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -40,6 +41,7 @@ def build_insights(
         lookback_minutes,
         metrics,
         recent_logs,
+        fallback=fallback,
         deep_analysis=deep_analysis,
     )
     if llm_response is None:
@@ -114,7 +116,7 @@ def _collect_insight_inputs(
         select(Log)
         .where(*base_filters)
         .order_by(Log.created_at.desc(), Log.id.desc())
-        .limit(settings.ollama_max_logs)
+        .limit(settings.resolved_llm_max_logs)
     ).all()
 
     target_error_group = _to_group_ref(error_groups[0]) if error_groups else None
@@ -281,8 +283,12 @@ def _generate_llm_analysis(
     lookback_minutes: int,
     metrics: dict[str, Any],
     recent_logs: list[Log],
+    fallback: InsightsResponse,
     deep_analysis: bool = False,
 ) -> InsightsResponse | None:
+    model_name = settings.resolved_llm_model
+    provider = settings.llm_provider.strip().lower()
+    print(f"Requesting LLM analysis from provider '{provider}' using model '{model_name}' with deep_analysis={deep_analysis}")
     prompt = _build_llm_prompt(
         project_id,
         lookback_minutes,
@@ -290,24 +296,23 @@ def _generate_llm_analysis(
         recent_logs,
     )
     try:
-        response = requests.post(
-            f"{settings.ollama_base_url.rstrip('/')}/api/generate",
-            json={
-                "model": settings.ollama_model,
-                "prompt": prompt,
-                "stream": False,
-                "format": "json",
-                "options": {
-                    "temperature": settings.ollama_temperature,
-                    "think": deep_analysis,
-                },
-            },
-            timeout=settings.ollama_timeout_seconds,
+        response = _request_llm_completion(
+            provider=provider,
+            prompt=prompt,
+            model_name=model_name,
+            deep_analysis=deep_analysis,
         )
         response.raise_for_status()
-        content = response.json().get("response", "")
+        print(f"LLM response status: {response.status_code}")
+        content = _extract_llm_content(response, provider)
+        print(f"LLM raw content: {content[:500]}...")  # Print first 500 chars for debugging
         parsed = _parse_llm_json(content)
+        print(f"LLM parsed content: {parsed}")
         if not parsed:
+            partial_target_group = _extract_partial_target_error_group(content)
+            if partial_target_group is not None:
+                print(f"LLM partial content recovered as target_error_group: {partial_target_group}")
+                return _merge_partial_llm_response(fallback, partial_target_group, model_name)
             return None
     except (requests.RequestException, ValueError, KeyError):
         return None
@@ -330,9 +335,102 @@ def _generate_llm_analysis(
         or metrics.get("contributing_error_groups", []),
         timeline=_build_timeline(recent_logs),
         analysis_mode="llm",
-        model_name=settings.ollama_model,
+        model_name=model_name,
         fallback_reason=None,
     )
+
+
+def _merge_partial_llm_response(
+    fallback: InsightsResponse,
+    target_error_group: dict[str, str],
+    model_name: str,
+) -> InsightsResponse:
+    return InsightsResponse(
+        project_id=fallback.project_id,
+        lookback_minutes=fallback.lookback_minutes,
+        total_logs=fallback.total_logs,
+        error_logs=fallback.error_logs,
+        top_error_type=fallback.top_error_type,
+        top_service=fallback.top_service,
+        root_cause=fallback.root_cause,
+        suggestion=fallback.suggestion,
+        confidence=fallback.confidence,
+        incident_summary=fallback.incident_summary,
+        action_plan=fallback.action_plan,
+        error_groups=fallback.error_groups,
+        target_error_group=InsightErrorGroupRef(
+            service_name=target_error_group["service_name"],
+            error_type=target_error_group["error_type"],
+            operation=target_error_group["operation"],
+        ),
+        contributing_error_groups=fallback.contributing_error_groups,
+        timeline=fallback.timeline,
+        analysis_mode="llm",
+        model_name=model_name,
+        fallback_reason="LLM returned partial target_error_group only; rule-based report was reused",
+    )
+
+
+def _request_llm_completion(
+    provider: str,
+    prompt: str,
+    model_name: str,
+    deep_analysis: bool,
+) -> Response:
+    if provider in {"openai", "openai_compatible", "openai-compatible", "akash"}:
+        return _request_openai_compatible(prompt=prompt, model_name=model_name)
+
+    return _request_ollama(prompt=prompt, model_name=model_name, deep_analysis=deep_analysis)
+
+
+def _request_ollama(prompt: str, model_name: str, deep_analysis: bool) -> Response:
+    return requests.post(
+        f"{settings.resolved_llm_base_url}/api/generate",
+        json={
+            "model": model_name,
+            "prompt": prompt,
+            "stream": False,
+            "format": "json",
+            "options": {
+                "temperature": settings.resolved_llm_temperature,
+                "think": deep_analysis,
+            },
+        },
+        timeout=settings.resolved_llm_timeout_seconds,
+    )
+
+
+def _request_openai_compatible(prompt: str, model_name: str) -> Response:
+    headers: dict[str, str] = {"Content-Type": "application/json"}
+    api_key = settings.resolved_llm_api_key
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+
+    return requests.post(
+        f"{settings.resolved_llm_base_url}/chat/completions",
+        headers=headers,
+        json={
+            "model": model_name,
+            "messages": [
+                {
+                    "role": "user",
+                    "content": prompt,
+                }
+            ],
+            "temperature": settings.resolved_llm_temperature,
+            "response_format": {"type": "json_object"},
+        },
+        timeout=settings.resolved_llm_timeout_seconds,
+    )
+
+
+def _extract_llm_content(response: Response, provider: str) -> str:
+    payload = response.json()
+
+    if provider in {"openai", "openai_compatible", "openai-compatible", "akash"}:
+        return str(payload["choices"][0]["message"]["content"])
+
+    return str(payload.get("response", ""))
 
 
 def _build_llm_prompt(
@@ -366,7 +464,7 @@ def _build_llm_prompt(
                 "operation": row.operation,
                 "level": row.level,
                 "status": row.status,
-                "message": row.message[: settings.ollama_max_chars_per_log],
+                "message": row.message[: settings.resolved_llm_max_chars_per_log],
                 "error_type": row.error_type,
                 "correlation_id": row.correlation_id,
             }
@@ -426,6 +524,8 @@ def _build_llm_prompt(
         "\n"
         "STRICT RULES:\n"
         "- Respond with valid JSON only. No prose, no markdown, no code fences.\n"
+        "- Return the full schema below. Do not return only target_error_group or only service/error/operation fields.\n"
+        "- If a field cannot be inferred, use null, an empty array, or a short honest explanation instead of omitting the key.\n"
         "- Base every statement ONLY on evidence present in the logs and metrics provided.\n"
         "- Do NOT speculate about causes that have no log evidence.\n"
         "- If logs are insufficient to determine a cause, say so honestly in root_cause.\n"
@@ -465,31 +565,37 @@ def _build_llm_prompt(
 def _parse_llm_json(content: str) -> dict[str, Any] | None:
     # Strip qwen3 / thinking-model <think>...</think> blocks before parsing.
     content = re.sub(r"<think>.*?</think>", "", content, flags=re.DOTALL).strip()
+    content = _strip_code_fences(content)
 
     # Try direct parse first; if that fails, find the first {...} JSON object in the response.
     parsed: Any = None
     try:
         parsed = json.loads(content)
     except json.JSONDecodeError:
-        match = re.search(r"\{.*\}", content, re.DOTALL)
-        if not match:
+        candidate = _extract_first_json_object(content)
+        if candidate is None:
             return None
         try:
-            parsed = json.loads(match.group())
+            parsed = json.loads(candidate)
         except json.JSONDecodeError:
             return None
 
+    parsed = _unwrap_llm_payload(parsed)
+    parsed = _normalize_llm_keys(parsed)
+
     if not isinstance(parsed, dict):
+        print(f"LLM parse rejected: expected object, got {type(parsed).__name__}")
         return None
 
     required = ["root_cause", "incident_summary", "suggestion", "confidence", "action_plan"]
-    if any(key not in parsed for key in required):
-        return None
-    if not isinstance(parsed["action_plan"], list):
+    missing = [key for key in required if key not in parsed]
+    if missing:
+        print(f"LLM parse rejected: missing required keys {missing}; raw keys were {sorted(parsed.keys())}")
         return None
 
-    action_plan = [str(item).strip() for item in parsed["action_plan"] if str(item).strip()]
+    action_plan = _normalize_action_plan(parsed["action_plan"])
     if not action_plan:
+        print("LLM parse rejected: action_plan was empty or unusable")
         return None
 
     target_error_group = None
@@ -537,6 +643,131 @@ def _parse_llm_json(content: str) -> dict[str, Any] | None:
         "target_error_group": target_error_group,
         "contributing_error_groups": contributing_error_groups[:5],
     }
+
+
+def _normalize_action_plan(raw_action_plan: Any) -> list[str]:
+    if isinstance(raw_action_plan, list):
+        return [str(item).strip() for item in raw_action_plan if str(item).strip()]
+
+    if isinstance(raw_action_plan, str):
+        lines = [line.strip() for line in raw_action_plan.splitlines() if line.strip()]
+        if lines:
+            return lines
+
+        parts = [part.strip() for part in re.split(r"[;|]", raw_action_plan) if part.strip()]
+        return parts
+
+    return []
+
+
+def _strip_code_fences(content: str) -> str:
+    fenced = re.match(r"^```(?:json)?\s*(.*?)\s*```$", content, flags=re.DOTALL | re.IGNORECASE)
+    if fenced:
+        return fenced.group(1).strip()
+    return content
+
+
+def _extract_first_json_object(content: str) -> str | None:
+    start = content.find("{")
+    if start < 0:
+        return None
+
+    depth = 0
+    in_string = False
+    escape = False
+    for index in range(start, len(content)):
+        char = content[index]
+
+        if in_string:
+            if escape:
+                escape = False
+            elif char == "\\":
+                escape = True
+            elif char == '"':
+                in_string = False
+            continue
+
+        if char == '"':
+            in_string = True
+            continue
+
+        if char == "{":
+            depth += 1
+        elif char == "}":
+            depth -= 1
+            if depth == 0:
+                return content[start : index + 1]
+
+    return None
+
+
+def _unwrap_llm_payload(parsed: Any) -> Any:
+    if not isinstance(parsed, dict):
+        return parsed
+
+    for key in ("analysis", "result", "data", "output", "response"):
+        nested = parsed.get(key)
+        if isinstance(nested, dict) and any(field in nested for field in ("root_cause", "incident_summary", "suggestion", "confidence", "action_plan")):
+            return nested
+
+    return parsed
+
+
+def _extract_partial_target_error_group(content: str) -> dict[str, str] | None:
+    try:
+        parsed: Any = json.loads(_strip_code_fences(re.sub(r"<think>.*?</think>", "", content, flags=re.DOTALL).strip()))
+    except json.JSONDecodeError:
+        candidate = _extract_first_json_object(content)
+        if candidate is None:
+            return None
+        try:
+            parsed = json.loads(candidate)
+        except json.JSONDecodeError:
+            return None
+
+    parsed = _unwrap_llm_payload(parsed)
+    parsed = _normalize_llm_keys(parsed)
+    if not isinstance(parsed, dict):
+        return None
+
+    service_name = str(parsed.get("service_name", "")).strip()
+    error_type = str(parsed.get("error_type", "")).strip()
+    operation = str(parsed.get("operation", "")).strip()
+    if service_name and error_type and operation:
+        return {
+            "service_name": service_name,
+            "error_type": error_type,
+            "operation": operation,
+        }
+
+    return None
+
+
+def _normalize_llm_keys(parsed: Any) -> Any:
+    if not isinstance(parsed, dict):
+        return parsed
+
+    alias_map = {
+        "rootCause": "root_cause",
+        "rootcause": "root_cause",
+        "incidentSummary": "incident_summary",
+        "incidentsummary": "incident_summary",
+        "actionPlan": "action_plan",
+        "actionplan": "action_plan",
+        "targetErrorGroup": "target_error_group",
+        "targeterrorgroup": "target_error_group",
+        "contributingErrorGroups": "contributing_error_groups",
+        "contributingerrorgroups": "contributing_error_groups",
+        "suggestion": "suggestion",
+        "confidence": "confidence",
+    }
+
+    normalized: dict[str, Any] = {}
+    for key, value in parsed.items():
+        normalized_key = alias_map.get(key, alias_map.get(key.replace("_", ""), key))
+        normalized[normalized_key] = value
+
+    return normalized
 
 
 def _calibrate_confidence(raw_confidence: Any, metrics: dict[str, Any]) -> float:
