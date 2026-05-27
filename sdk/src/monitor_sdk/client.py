@@ -110,6 +110,20 @@ class Monitor:
         )
         self._flush_thread.start()
 
+    def start_heartbeat_loop(self, interval: float = 30.0) -> None:
+        """Send a periodic heartbeat every *interval* seconds so the service
+        stays visible in the Servers dashboard while it is running.
+        Stops automatically when the Monitor is closed.
+        """
+        def _loop() -> None:
+            while not self._stop_event.is_set():
+                self._stop_event.wait(interval)
+                if not self._stop_event.is_set():
+                    self.heartbeat()
+
+        t = threading.Thread(target=_loop, name="monitor-sdk-heartbeat", daemon=True)
+        t.start()
+
     def close(self) -> None:
         self._stop_event.set()
         if self._flush_thread and self._flush_thread.is_alive():
@@ -157,6 +171,27 @@ class Monitor:
 
         if should_flush:
             self.flush()
+
+    def heartbeat(self, service_name: str | None = None) -> None:
+        """Register this service with the monitor immediately, bypassing min_level.
+
+        Useful at startup so the service appears in the Servers dashboard even
+        before any real errors occur.
+        """
+        resolved = service_name or self._cfg.service_name
+        payload = {
+            "service_name": resolved,
+            "level": "INFO",
+            "message": f"Service '{resolved}' started",
+            "source": self._cfg.source,
+            "operation": "startup",
+            "status": "started",
+            "error_type": None,
+            "correlation_id": None,
+            "metadata": None,
+        }
+        with self._lock:
+            self._buffer.append(payload)
 
     def info(self, message: str, **kwargs: Any) -> None:
         self.log(message, level="INFO", **kwargs)

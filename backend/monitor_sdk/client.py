@@ -155,6 +155,27 @@ class Monitor:
         if should_flush:
             self.flush()
 
+    def heartbeat(self, service_name: str | None = None) -> None:
+        """Register this service with the monitor immediately, bypassing min_level.
+
+        Useful at startup so the service appears in the Servers dashboard even
+        before any real errors occur.
+        """
+        resolved = service_name or self._cfg.service_name
+        payload = {
+            "service_name": resolved,
+            "level": "INFO",
+            "message": f"Service '{resolved}' started",
+            "source": self._cfg.source,
+            "operation": "startup",
+            "status": "started",
+            "error_type": None,
+            "correlation_id": None,
+            "metadata": None,
+        }
+        with self._lock:
+            self._buffer.append(payload)
+
     def info(self, message: str, **kwargs: Any) -> None:
         self.log(message, level="INFO", **kwargs)
 

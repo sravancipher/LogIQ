@@ -1,6 +1,6 @@
-# Project Monitor SDK
+# project-monitor-sdk
 
-Official Python SDK for the [Project Monitor](https://github.com/your-org/project-monitor) AI Observability Platform.
+Python SDK for [Project Monitor](https://github.com/your-org/project-monitor) — send logs, capture exceptions, and keep your services visible in the dashboard.
 
 ## Install
 
@@ -8,60 +8,64 @@ Official Python SDK for the [Project Monitor](https://github.com/your-org/projec
 pip install project-monitor-sdk
 ```
 
-Or in editable / development mode from this repo:
-
-```bash
-pip install -e "e:\Project Monitor\sdk"
-```
-
 ## Quick start
 
 ```python
-from monitor_sdk import Monitor, MonitorASGIMiddleware
+from monitor_sdk import Monitor
 
 monitor = Monitor(
     api_key="pm_your_api_key",
     base_url="http://localhost:8000",
     service_name="my-service",
-    min_level="WARN",   # only WARN and above are sent
+    min_level="WARN",
 )
 
-# Manual logging
-monitor.warn("disk usage above 90%", operation="disk_check", metadata={"usage_pct": 91})
+# Register the service in the dashboard immediately
+monitor.heartbeat()
+monitor.start_heartbeat_loop(interval=30)
+
+# Logging
+monitor.info("server started", operation="startup")
+monitor.warn("high memory usage", operation="health_check", metadata={"pct": 87})
 monitor.error("payment failed", operation="checkout", error_type="TimeoutError")
 
-# Capture exceptions automatically
+# Capture exceptions
 try:
-    risky_operation()
+    call_external_api()
 except Exception as exc:
-    monitor.capture_exception(exc, operation="risky_operation")
+    monitor.capture_exception(exc, operation="external_api")
 
 # Trace a block
 with monitor.trace("checkout_flow"):
     process_order()
 
-# ASGI middleware (FastAPI / Starlette) – auto-logs every request
+# FastAPI / Starlette middleware — auto-logs every request
 from fastapi import FastAPI
+from monitor_sdk import MonitorASGIMiddleware
+
 app = FastAPI()
 app.add_middleware(MonitorASGIMiddleware, monitor=monitor)
 ```
 
 ## Configuration
 
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `api_key` | required | Project Monitor API key |
-| `base_url` | required | Backend URL, e.g. `http://localhost:8000` |
-| `service_name` | `None` | Name shown in the dashboard |
-| `min_level` | `"WARN"` | Drop logs below this level (`DEBUG` / `INFO` / `WARN` / `ERROR` / `CRITICAL`) |
-| `batch_size` | `50` | Flush when buffer reaches this many events |
-| `flush_interval` | `2.0` | Seconds between automatic flushes |
-| `max_retries` | `3` | HTTP retries per batch |
+| Parameter | Description |
+|-----------|-------------|
+| `api_key` | Project Monitor API key (`pm_...`) |
+| `base_url` | Backend URL, e.g. `http://localhost:8000` |
+| `service_name` | Name shown in the Servers dashboard |
+| `min_level` | Drop events below this level — `DEBUG` / `INFO` / `WARN` / `ERROR` / `CRITICAL` |
+| `batch_size` | Flush when the buffer reaches this many events (default `50`) |
+| `flush_interval` | Seconds between automatic flushes (default `2.0`) |
+| `max_retries` | HTTP retries per batch with exponential back-off (default `3`) |
 
-## Log levels
+## Links
 
-```
-DEBUG < INFO < WARN < ERROR < CRITICAL
-```
+- [Full documentation & setup guide](https://github.com/your-org/project-monitor#readme)
+- [Changelog](https://github.com/your-org/project-monitor/releases)
+- [Issues](https://github.com/your-org/project-monitor/issues)
 
-Only events **at or above** `min_level` are sent to the backend.
+## License
+
+MIT
+

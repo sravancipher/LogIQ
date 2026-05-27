@@ -140,27 +140,40 @@ curl -X POST "http://localhost:8000/api/v1/alerts/test" ^
 pytest -q
 ```
 
-## 6. LLM Insights (Ollama)
+## 6. LLM Insights (Flexible Provider)
 
-To enable Ollama-backed root cause analysis, add these settings to `.env`:
+To enable LLM-backed root cause analysis, configure these generic settings in `.env`:
 
 ```bash
 LLM_ENABLED=true
-LLM_PROVIDER=ollama
-OLLAMA_BASE_URL=http://localhost:11434
-OLLAMA_MODEL=qwen3:4b-q4_K_M
-OLLAMA_TIMEOUT_SECONDS=20
-OLLAMA_MAX_LOGS=25
-OLLAMA_MAX_CHARS_PER_LOG=400
-OLLAMA_TEMPERATURE=0.1
+LLM_PROVIDER=openai_compatible
+LLM_BASE_URL=http://provider.h100.ams.val.akash.pub:32456/v1
+LLM_MODEL=Qwen/Qwen3.6-35B-A3B-FP8
+LLM_API_KEY=EMPTY
+LLM_TIMEOUT_SECONDS=20
+LLM_MAX_LOGS=25
+LLM_MAX_CHARS_PER_LOG=400
+LLM_TEMPERATURE=0.1
 ```
+
+Ollama example (easy switch):
+
+```bash
+LLM_PROVIDER=ollama
+LLM_BASE_URL=http://localhost:11434
+LLM_MODEL=qwen3:4b-q4_K_M
+LLM_API_KEY=
+```
+
+Backward compatibility: existing `OLLAMA_*` variables are still supported as fallbacks if `LLM_*` values are not set.
 
 Behavior:
 
 - Uses recent logs plus summary metrics as prompt input
-- Calls Ollama `/api/generate` with `stream=false`
+- `LLM_PROVIDER=ollama` calls `/api/generate`
+- `LLM_PROVIDER=openai_compatible` calls `/chat/completions`
 - Expects strict JSON output for RCA, incident summary, and action plan
-- Falls back to the rule-based insight engine if Ollama is disabled, unreachable, or returns invalid JSON
+- Falls back to the rule-based insight engine if LLM is disabled, unreachable, or returns invalid JSON
 - Caps prompt size by limiting log count and message length
 
 ## 7. Python SDK (`monitor_sdk`)
