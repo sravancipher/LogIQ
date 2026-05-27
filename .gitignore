@@ -1,11 +1,62 @@
-Company/.env
-Company/.env.example
-Company/company_app.py
-Company/requirements.txt
-Company/app.py
-Company/__pycache__/app.cpython-314.pyc
-Company/__pycache__/company_app.cpython-314.pyc
-# AI-Powered Monitoring & Auto-Debugging.md
-# AI-Powered Monitoring & Auto-Debugging.md
-backend/app/core/__pycache__/config.cpython-314.pyc
-backend/app/services/__pycache__/insights_service.cpython-314.pyc
+# ── Python ───────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+*.whl
+
+# ── Virtual environments ──────────────────────────────────────────────────────
+.venv/
+venv/
+env/
+ENV/
+project_venv/
+backend/project_venv/
+
+# ── Environment / secrets ─────────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+
+# ── Node / Frontend ───────────────────────────────────────────────────────────
+node_modules/
+frontend/dist/
+frontend/.vite/
+*.local
+
+# ── Alembic compiled ──────────────────────────────────────────────────────────
+backend/alembic/__pycache__/
+backend/alembic/versions/__pycache__/
+
+# ── VS Code ───────────────────────────────────────────────────────────────────
+.vscode/
+
+# ── OS ────────────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── Pytest / coverage ─────────────────────────────────────────────────────────
+.pytest_cache/
+.coverage
+htmlcov/
+*.coveragerc
+
+# ── Spectra (internal, not part of this repo) ────────────────────────────────
+Spectra/
+
+# ── Company (internal) ───────────────────────────────────────────────────────
+Company/
+
+# ── SDK dist (built artifacts) ────────────────────────────────────────────────
+sdk/dist/
+sdk/*.egg-info/
+sdk/src/*.egg-info/
+sdk/src/project_monitor_sdk.egg-info/
+
