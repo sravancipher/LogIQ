@@ -1,6 +1,6 @@
 <div align="center">
 
-# Project Monitor
+# Project Monit
 
 **AI-powered observability platform for your backend services.**
 
