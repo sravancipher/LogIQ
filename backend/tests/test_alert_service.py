@@ -77,3 +77,33 @@ def test_send_slack_alert_escapes_payload_before_posting(monkeypatch):
     assert result is True
     assert "&lt;!channel&gt;" in captured["json"]["text"]
     assert "<!channel>" not in captured["json"]["text"]
+
+
+def test_send_teams_alert_posts_a_valid_adaptive_card(monkeypatch):
+    captured = {}
+
+    class _Resp:
+        status_code = 200
+
+    def fake_post(url, json, timeout):
+        captured["url"] = url
+        captured["json"] = json
+        return _Resp()
+
+    monkeypatch.setattr("app.services.alert_service.requests.post", fake_post)
+
+    payload = AlertTestRequest(title="Payment timeout", message="Errors spiking", severity="HIGH")
+    config = resolve_alert_config(_FakeScalarDb(row=None), uuid.uuid4())
+    config.teams_webhook_url = "https://example.webhook.office.com/webhookb2/test"
+
+    result = send_teams_alert(payload, config)
+
+    assert result is True
+    body = captured["json"]
+    # Teams Workflows' "When a Teams webhook request is received" trigger requires the
+    # POST body itself to be an Adaptive Card (root "type" == "AdaptiveCard"), not the
+    # legacy Office 365 Connector {"title", "text"} MessageCard shape.
+    assert body["type"] == "AdaptiveCard"
+    assert "$schema" in body
+    assert any("Payment timeout" in block["text"] for block in body["body"])
+    assert any("Errors spiking" in block["text"] for block in body["body"])
