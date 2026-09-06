@@ -1,9 +1,56 @@
 import uuid
 from datetime import datetime, timedelta, timezone
 
+from app.core.config import settings
 from app.models.log import Log
 from app.schemas.insight import InsightsResponse
-from app.services.insights_service import _build_timeline, _merge_partial_llm_response
+from app.services.insights_service import _build_timeline, _merge_partial_llm_response, resolve_llm_config
+
+
+class _FakeScalarDb:
+    def __init__(self, row=None):
+        self._row = row
+
+    def scalar(self, *_args, **_kwargs):
+        return self._row
+
+
+def _make_llm_settings_row(**overrides):
+    defaults = dict(
+        project_id=uuid.uuid4(),
+        enabled=None,
+        provider=None,
+        base_url=None,
+        model=None,
+        api_key=None,
+        temperature=None,
+    )
+    defaults.update(overrides)
+    return type("LlmSettingsRow", (), defaults)()
+
+
+def test_resolve_llm_config_with_no_override_matches_system_defaults():
+    config = resolve_llm_config(_FakeScalarDb(row=None), uuid.uuid4())
+
+    assert config.enabled == settings.llm_enabled
+    assert config.provider == settings.llm_provider
+    assert config.base_url == settings.resolved_llm_base_url
+    assert config.model == settings.resolved_llm_model
+    assert config.temperature == settings.resolved_llm_temperature
+
+
+def test_resolve_llm_config_merges_partial_override_with_system_defaults():
+    row = _make_llm_settings_row(enabled=True, model="llama3.1", api_key="proj-key")
+    config = resolve_llm_config(_FakeScalarDb(row=row), uuid.uuid4())
+
+    # Explicitly overridden fields win...
+    assert config.enabled is True
+    assert config.model == "llama3.1"
+    assert config.api_key == "proj-key"
+    # ...fields left None on the row still fall back to system defaults.
+    assert config.provider == settings.llm_provider
+    assert config.base_url == settings.resolved_llm_base_url
+    assert config.temperature == settings.resolved_llm_temperature
 
 
 def _make_log(seconds_ago: int) -> Log:

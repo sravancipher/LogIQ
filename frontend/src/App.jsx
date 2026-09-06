@@ -8,6 +8,7 @@ import AIInsights from './pages/AIInsights.jsx';
 import Integrations from './pages/Integrations.jsx';
 import Alerts from './pages/Alerts.jsx';
 import Servers from './pages/Servers.jsx';
+import LlmSettings from './pages/LlmSettings.jsx';
 
 export const AppContext = createContext({
   apiKey: '',
@@ -23,6 +24,7 @@ const PAGE_TITLES = {
   'page-integrations': 'Cloud Integrations',
   'page-alerts':       'Alerts',
   'page-servers':      'Servers',
+  'page-llm-settings': 'AI Configuration',
 };
 
 export default function App() {
@@ -46,6 +48,7 @@ export default function App() {
           {activePage === 'page-integrations' && <Integrations />}
           {activePage === 'page-alerts'       && <Alerts />}
           {activePage === 'page-servers'      && <Servers />}
+          {activePage === 'page-llm-settings' && <LlmSettings />}
         </div>
       </div>
     </AppContext.Provider>

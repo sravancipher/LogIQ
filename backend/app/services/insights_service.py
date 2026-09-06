@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import re
 import uuid
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -12,6 +13,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.models.llm_settings import LlmSettings
 from app.models.log import Log
 from app.schemas.insight import (
     InsightDependentErrorGroup,
@@ -20,6 +22,68 @@ from app.schemas.insight import (
     InsightTimelineEvent,
     InsightsResponse,
 )
+
+
+@dataclass
+class LlmRuntimeConfig:
+    enabled: bool
+    provider: str
+    base_url: str
+    model: str
+    api_key: str | None
+    temperature: float
+    timeout_seconds: int
+
+
+def resolve_llm_config(db: Session, project_id: uuid.UUID) -> LlmRuntimeConfig:
+    """Merge a project's optional LLM override (llm_settings) with the system-wide defaults.
+
+    Any field left unset (None) on the project's row falls back to app.core.config.settings,
+    so a project with no override behaves exactly as before this feature existed.
+    """
+    row = db.scalar(select(LlmSettings).where(LlmSettings.project_id == project_id))
+
+    enabled = settings.llm_enabled if row is None or row.enabled is None else row.enabled
+    provider = (row.provider if row and row.provider else settings.llm_provider).strip().lower()
+    base_url = (row.base_url if row and row.base_url else settings.resolved_llm_base_url).rstrip("/")
+    model = row.model if row and row.model else settings.resolved_llm_model
+    api_key = (row.api_key if row and row.api_key else settings.resolved_llm_api_key)
+    temperature = settings.resolved_llm_temperature if not row or row.temperature is None else row.temperature
+
+    return LlmRuntimeConfig(
+        enabled=enabled,
+        provider=provider,
+        base_url=base_url,
+        model=model,
+        api_key=api_key,
+        temperature=temperature,
+        timeout_seconds=settings.resolved_llm_timeout_seconds,
+    )
+
+
+def test_llm_connection(db: Session, project_id: uuid.UUID) -> tuple[bool, str]:
+    """Send one real request to the project's effective LLM config. Never raises."""
+    llm_config = resolve_llm_config(db, project_id)
+
+    if not llm_config.enabled:
+        return False, "AI analysis is disabled for this project; enable it before testing the connection."
+
+    try:
+        response = _request_llm_completion(
+            provider=llm_config.provider,
+            prompt='Respond with strict JSON only: {"root_cause": "ok", "incident_summary": "ok", '
+            '"suggestion": "ok", "confidence": 1.0, "action_plan": ["ok"]}',
+            model_name=llm_config.model,
+            deep_analysis=False,
+            llm_config=llm_config,
+        )
+        response.raise_for_status()
+        content = _extract_llm_content(response, llm_config.provider)
+        return True, f"Connected to {llm_config.provider} at {llm_config.base_url} (model: {llm_config.model})."
+    except requests.RequestException as exc:
+        return False, f"Could not reach {llm_config.base_url}: {exc}"
+    except (ValueError, KeyError) as exc:
+        return False, f"Connected, but the response was not in the expected format: {exc}"
 
 
 def build_insights(
@@ -31,7 +95,9 @@ def build_insights(
     metrics, recent_logs = _collect_insight_inputs(db=db, project_id=project_id, lookback_minutes=lookback_minutes)
     fallback = _build_rule_based_insights(project_id, lookback_minutes, metrics, recent_logs)
 
-    if not settings.llm_enabled:
+    llm_config = resolve_llm_config(db, project_id)
+
+    if not llm_config.enabled:
         print("LLM analysis disabled, returning rule-based insights")
         fallback.fallback_reason = "LLM analysis disabled"
         return fallback
@@ -43,6 +109,7 @@ def build_insights(
         recent_logs,
         fallback=fallback,
         deep_analysis=deep_analysis,
+        llm_config=llm_config,
     )
     if llm_response is None:
         print("LLM analysis failed or returned invalid response, falling back to rule-based insights")
@@ -284,10 +351,11 @@ def _generate_llm_analysis(
     metrics: dict[str, Any],
     recent_logs: list[Log],
     fallback: InsightsResponse,
+    llm_config: LlmRuntimeConfig,
     deep_analysis: bool = False,
 ) -> InsightsResponse | None:
-    model_name = settings.resolved_llm_model
-    provider = settings.llm_provider.strip().lower()
+    model_name = llm_config.model
+    provider = llm_config.provider
     print(f"Requesting LLM analysis from provider '{provider}' using model '{model_name}' with deep_analysis={deep_analysis}")
     prompt = _build_llm_prompt(
         project_id,
@@ -301,6 +369,7 @@ def _generate_llm_analysis(
             prompt=prompt,
             model_name=model_name,
             deep_analysis=deep_analysis,
+            llm_config=llm_config,
         )
         response.raise_for_status()
         print(f"LLM response status: {response.status_code}")
@@ -376,38 +445,38 @@ def _request_llm_completion(
     prompt: str,
     model_name: str,
     deep_analysis: bool,
+    llm_config: LlmRuntimeConfig,
 ) -> Response:
     if provider in {"openai", "openai_compatible", "openai-compatible", "akash"}:
-        return _request_openai_compatible(prompt=prompt, model_name=model_name)
+        return _request_openai_compatible(prompt=prompt, model_name=model_name, llm_config=llm_config)
 
-    return _request_ollama(prompt=prompt, model_name=model_name, deep_analysis=deep_analysis)
+    return _request_ollama(prompt=prompt, model_name=model_name, deep_analysis=deep_analysis, llm_config=llm_config)
 
 
-def _request_ollama(prompt: str, model_name: str, deep_analysis: bool) -> Response:
+def _request_ollama(prompt: str, model_name: str, deep_analysis: bool, llm_config: LlmRuntimeConfig) -> Response:
     return requests.post(
-        f"{settings.resolved_llm_base_url}/api/generate",
+        f"{llm_config.base_url}/api/generate",
         json={
             "model": model_name,
             "prompt": prompt,
             "stream": False,
             "format": "json",
             "options": {
-                "temperature": settings.resolved_llm_temperature,
+                "temperature": llm_config.temperature,
                 "think": deep_analysis,
             },
         },
-        timeout=settings.resolved_llm_timeout_seconds,
+        timeout=llm_config.timeout_seconds,
     )
 
 
-def _request_openai_compatible(prompt: str, model_name: str) -> Response:
+def _request_openai_compatible(prompt: str, model_name: str, llm_config: LlmRuntimeConfig) -> Response:
     headers: dict[str, str] = {"Content-Type": "application/json"}
-    api_key = settings.resolved_llm_api_key
-    if api_key:
-        headers["Authorization"] = f"Bearer {api_key}"
+    if llm_config.api_key:
+        headers["Authorization"] = f"Bearer {llm_config.api_key}"
 
     return requests.post(
-        f"{settings.resolved_llm_base_url}/chat/completions",
+        f"{llm_config.base_url}/chat/completions",
         headers=headers,
         json={
             "model": model_name,
@@ -417,10 +486,10 @@ def _request_openai_compatible(prompt: str, model_name: str) -> Response:
                     "content": prompt,
                 }
             ],
-            "temperature": settings.resolved_llm_temperature,
+            "temperature": llm_config.temperature,
             "response_format": {"type": "json_object"},
         },
-        timeout=settings.resolved_llm_timeout_seconds,
+        timeout=llm_config.timeout_seconds,
     )
 
 

@@ -10,6 +10,7 @@ const NAV_ITEMS = [
   { id: 'page-insights',     icon: '\u2908', label: 'AI Insights' },
   { id: 'page-integrations', icon: '\u2B21', label: 'Integrations' },
   { id: 'page-alerts',       icon: '\u25CE', label: 'Alerts' },
+  { id: 'page-llm-settings', icon: '\u2699', label: 'AI Configuration' },
 ];
 
 export default function Sidebar({ activePage, navigateTo }) {
