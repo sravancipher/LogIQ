@@ -274,7 +274,7 @@ def _build_timeline(logs: list[Log]) -> list[InsightTimelineEvent]:
             error_type=row.error_type,
             correlation_id=row.correlation_id,
         )
-        for row in reversed(logs[-10:])
+        for row in reversed(logs[:10])
     ]
 
 
@@ -365,7 +365,7 @@ def _merge_partial_llm_response(
         ),
         contributing_error_groups=fallback.contributing_error_groups,
         timeline=fallback.timeline,
-        analysis_mode="llm",
+        analysis_mode="fallback",
         model_name=model_name,
         fallback_reason="LLM returned partial target_error_group only; rule-based report was reused",
     )

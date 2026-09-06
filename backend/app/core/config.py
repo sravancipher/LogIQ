@@ -18,22 +18,22 @@ class Settings(BaseSettings):
     smtp_username: str | None = None
     smtp_password: str | None = None
 
-    llm_enabled: bool = True
-    llm_provider: str = "openai"
-    llm_base_url: str = "http://provider.h100.ams.val.akash.pub:32456/v1"
-    llm_model: str = "Qwen/Qwen3.6-35B-A3B-FP8"
-    llm_api_key: str = "EMPTY"
+    llm_enabled: bool = False
+    llm_provider: str = "ollama"
+    llm_base_url: str = ""
+    llm_model: str = ""
+    llm_api_key: str = ""
     llm_timeout_seconds: int = 20
     llm_max_logs: int = 25
     llm_max_chars_per_log: int = 400
-    llm_temperature: float = 0.5
+    llm_temperature: float = 0.1
 
-    ollama_base_url: str = "http://192.168.1.34:11434"
+    ollama_base_url: str = "http://localhost:11434"
     ollama_model: str = "qwen3:4b-q4_K_M"
     ollama_timeout_seconds: int = 20
     ollama_max_logs: int = 25
     ollama_max_chars_per_log: int = 400
-    ollama_temperature: float = 0.5
+    ollama_temperature: float = 0.1
 
     @property
     def resolved_llm_base_url(self) -> str:

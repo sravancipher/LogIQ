@@ -29,6 +29,7 @@ def test_monitor_batches_and_flushes_on_batch_size():
         flush_interval=60,
         session=session,
         start_background=False,
+        min_level="INFO",
     )
 
     monitor.info("one")
@@ -53,6 +54,7 @@ def test_monitor_retries_before_success():
         max_retries=3,
         session=session,
         start_background=False,
+        min_level="INFO",
     )
 
     monitor.info("hello")
@@ -68,6 +70,7 @@ def test_correlation_context_propagates_to_log_payload():
         flush_interval=60,
         session=session,
         start_background=False,
+        min_level="INFO",
     )
 
     token = set_correlation_id("corr-123")

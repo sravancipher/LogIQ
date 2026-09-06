@@ -75,6 +75,44 @@ Cloud Providers
         └── auto-normalised  →  stored as logs
 ```
 
+## SDK Internal Flow
+
+The Python SDK is designed to be lightweight and non-blocking.
+
+```
+Application
+      │
+      ▼
+monitor.info()/warn()/error()
+      │
+      ▼
+Memory Buffer
+      │
+      ├──────────► Automatic Flush (batch size)
+      │
+      ├──────────► Automatic Flush (time interval)
+      │
+      └──────────► Manual flush()
+                    │
+                    ▼
+POST /api/v1/logs
+                    │
+                    ▼
+Backend API
+```
+
+Each log is buffered in memory before upload.
+
+This reduces network overhead and improves application performance.
+
+The SDK automatically:
+
+- batches log events
+- retries failed uploads
+- propagates correlation IDs
+- captures request metadata
+- buffers events in memory
+
 ---
 
 ## Quick Start
@@ -339,6 +377,21 @@ with monitor.trace("checkout_flow", metadata={"cart_id": cart.id}):
     process_order()
 # INFO on entry · ERROR with duration_ms if the block raises
 ```
+### Why use trace()
+
+`trace()` groups multiple log events into one business operation.
+
+Example:
+
+Checkout
+
+├── Inventory
+├── Payment
+└── Notification
+
+Instead of independent logs, Project Monitor knows they belong to the same operation.
+
+This improves AI Insights and future distributed tracing.
 
 ### ASGI middleware (FastAPI / Starlette)
 
@@ -363,12 +416,75 @@ finally:
     reset_correlation_id(token)
 ```
 
+### How Correlation IDs Work
+
+Project Monitor automatically propagates correlation IDs across an entire request.
+
+```
+HTTP Request
+        │
+        ▼
+ASGI Middleware
+        │
+        ▼
+Generate / Read Correlation ID
+        │
+        ▼
+ContextVar
+        │
+        ▼
+Every monitor.info()/warn()/error()
+        │
+        ▼
+Database
+```
+
+Every log generated during the same request automatically receives the same correlation ID.
+
+Developers do not need to manually attach correlation IDs to every log.
+
+This enables:
+
+- request reconstruction
+- distributed tracing
+- AI dependency analysis
+- cross-service error grouping
+
 ### Heartbeat
 
-```python
-monitor.heartbeat()                  # one-shot — service appears in Servers dashboard immediately
-monitor.start_heartbeat_loop(30)     # daemon thread pings every 30 s; stops on monitor.close()
+### Heartbeat
+
+Heartbeat tells Project Monitor that your service is still alive.
+
+Without heartbeat:
+
 ```
+Inventory Service
+
+(no traffic)
+
+↓
+
+Server disappears
+```
+
+With heartbeat:
+
+```
+Inventory Service
+
+↓
+
+Heartbeat every 30 seconds
+
+↓
+
+Servers Dashboard
+
+Healthy
+```
+
+Heartbeat events bypass log filtering so services remain visible even when idle.
 
 Heartbeat events bypass `min_level` so the service is always visible.
 
@@ -387,6 +503,29 @@ Heartbeat events bypass `min_level` so the service is always visible.
 | `max_retries` | `3` | Retries per batch (exponential back-off) |
 | `retry_backoff_seconds` | `0.5` | Base back-off delay |
 | `start_background` | `True` | Start flush thread on init |
+
+
+## SDK Lifecycle
+
+Typical application lifecycle:
+
+```python
+monitor = Monitor(...)
+
+monitor.install_excepthook()
+
+monitor.heartbeat()
+
+...
+
+monitor.flush()
+
+monitor.close()
+```
+
+The SDK keeps a background thread running which periodically uploads buffered logs.
+
+Before the application exits, call `flush()` and `close()` to ensure no events are lost.
 
 ---
 
@@ -562,7 +701,24 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 ## 3. Worker (Queue Pipeline Scaffold)
 
-Run the background queue worker in a second terminal:
+### Current Worker Responsibilities
+
+The current background worker processes pending work queue records.
+
+Current implementation:
+
+- fetch pending jobs
+- execute placeholder processor
+- mark jobs as complete
+
+Future responsibilities include:
+
+- correlation analysis
+- embedding generation
+- AI pre-processing
+- scheduled notifications
+- semantic indexing
+- cache generation
 
 ```bash
 python -m app.workers.queue_worker

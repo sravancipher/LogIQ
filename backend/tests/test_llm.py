@@ -41,11 +41,12 @@ def _resolve_config() -> dict[str, object]:
     else:
         print("Using OpenAI-compatible provider. Ensure LLM_BASE_URL and LLM_MODEL are set, or defaults will be used.")
         if not base_url:
-            base_url = "http://provider.h100.ams.val.akash.pub:32527/v1"
+            base_url = "https://lsru444bl9d9r96dpicv3b55sg.ingress.h100.siamaidol.com/v1"
         if not model:
-            model = "Qwen/Qwen3.6-35B-A3B-FP8"
+            model = "nvidia/Cosmos3-Nano"
 
-    api_key = (os.getenv("LLM_API_KEY") or "").strip()
+    # api_key = (os.getenv("LLM_API_KEY") or "E").strip()
+    api_key = "EMPTY"
 
     timeout = float(os.getenv("LLM_TIMEOUT_SECONDS", "20"))
     temperature = float(os.getenv("LLM_TEMPERATURE", "0.2"))
@@ -87,7 +88,18 @@ def _request_openai_compatible(config: dict[str, object], prompt: str) -> str:
     api_key = str(config["api_key"])
     if api_key:
         headers["Authorization"] = f"Bearer {api_key}"
+    url = f"{config['base_url']}/chat/completions"
 
+    print("\n===== REQUEST =====")
+    print("URL:", url)
+    print("Headers:", headers)
+    print("Payload:")
+    print(json.dumps({
+        "model": config["model"],
+        "messages": [{"role": "user", "content": prompt}],
+        "temperature": config["temperature"],
+    }, indent=2))
+    print("===================\n")
     response = requests.post(
         f"{config['base_url']}/chat/completions",
         headers=headers,
@@ -98,6 +110,14 @@ def _request_openai_compatible(config: dict[str, object], prompt: str) -> str:
         },
         timeout=float(config["timeout"]),
     )
+    print("\n===== RESPONSE =====")
+    print("Status Code:", response.status_code)
+    print("Headers:", response.headers)
+    print("Body:")
+    print(response.text)
+    print("====================")
+
+    response.raise_for_status()
     response.raise_for_status()
     payload = response.json()
     return str(payload["choices"][0]["message"]["content"])

@@ -10,7 +10,7 @@ def test_insights_endpoint_falls_back_when_llm_disabled(client, monkeypatch):
     monkeypatch.setattr(
         insights_route,
         "build_insights",
-        lambda db, project_id, lookback_minutes: InsightsResponse(
+        lambda db, project_id, lookback_minutes, deep_analysis=False: InsightsResponse(
             project_id=str(project_id),
             lookback_minutes=lookback_minutes,
             total_logs=3,

@@ -78,16 +78,17 @@
 import requests
 import json
 
-res = requests.post(
-    "http://192.168.1.34:11434/api/generate",
-    json={
-        "model": "qwen3:4b-q4_K_M",
-        "prompt": "Do the RCA on thie error: 'Connection timeout after 30s'",
-    },
-    stream=True
-)
+if __name__ == "__main__":
+    res = requests.post(
+        "http://192.168.1.34:11434/api/generate",
+        json={
+            "model": "qwen3:4b-q4_K_M",
+            "prompt": "Do the RCA on thie error: 'Connection timeout after 30s'",
+        },
+        stream=True
+    )
 
-for line in res.iter_lines():
-    if line:
-        data = json.loads(line)
-        print(data.get("response", ""), end="", flush=True)
+    for line in res.iter_lines():
+        if line:
+            data = json.loads(line)
+            print(data.get("response", ""), end="", flush=True)

@@ -126,11 +126,13 @@ export default function AIInsights() {
           <div className="form-row" style={{ marginBottom: 0 }}>
             <label>Lookback Window</label>
             <select value={lookback} onChange={e => setLookback(e.target.value)} style={{ width: '168px' }}>
-              <option value="15">Last 15 minutes</option>
-              <option value="30">Last 30 minutes</option>
-              <option value="60">Last 1 hour</option>
-              <option value="360">Last 6 hours</option>
-              <option value="1440">Last 24 hours</option>
+                <option value="15">Last 15 minutes</option>
+                <option value="30">Last 30 minutes</option>
+                <option value="60">Last 1 hour</option>
+                <option value="360">Last 6 hours</option>
+                <option value="1440">Last 24 hours</option>
+                <option value="10080">Last 7 days</option>
+                <option value="43200">Last 30 days</option>
             </select>
           </div>
           <div className="form-row" style={{ marginBottom: 0, minWidth: '220px' }}>

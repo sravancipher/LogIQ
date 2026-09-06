@@ -12,7 +12,7 @@ router = APIRouter(prefix="/insights", tags=["insights"])
 
 @router.get("", response_model=InsightsResponse)
 def get_insights(
-    lookback_minutes: int = Query(default=60, ge=5, le=1440),
+    lookback_minutes: int = Query(default=60, ge=5, le=43200),
     deep_analysis: bool = Query(default=False),
     auth: AuthContext = Depends(require_api_key),
     db: Session = Depends(get_db),
