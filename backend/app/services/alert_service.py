@@ -1,77 +1,103 @@
 from __future__ import annotations
 
+import logging
 import smtplib
 from email.message import EmailMessage
 from typing import Any
 
 import requests
 
-from app.core.config import settings
-from app.schemas.alert import AlertTestRequest, AlertTestResponse, InsightNotifyRequest, InsightNotifyResponse
+from app.schemas.alert import AlertTestRequest, InsightNotifyRequest, InsightNotifyResponse, AlertTestResponse
 from app.schemas.insight import InsightsResponse
+from app.services.alert_settings_service import AlertChannelConfig
+
+logger = logging.getLogger(__name__)
 
 
-def _post_webhook(url: str | None, payload: dict) -> bool:
+def _escape_slack_text(text: str) -> str:
+    # Per Slack's own escaping rules: & < > must be replaced before building message
+    # text, otherwise sequences like "<!channel>" or "<@Uxxx>" are parsed as live
+    # mentions/links instead of rendered as literal text.
+    return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+def _escape_teams_text(text: str) -> str:
+    # Teams MessageCard "text"/"title" fields render as markdown; escape the characters
+    # that could otherwise inject unintended formatting or links.
+    for char in ("\\", "*", "_", "~", "`", "[", "]", "(", ")"):
+        text = text.replace(char, f"\\{char}")
+    return text
+
+
+def _post_webhook(url: str | None, payload: dict, channel: str) -> bool:
     if not url:
         return False
     try:
         response = requests.post(url, json=payload, timeout=10)
-        return 200 <= response.status_code < 300
+        if not (200 <= response.status_code < 300):
+            logger.warning("%s webhook returned status %s", channel, response.status_code)
+            return False
+        return True
     except requests.RequestException:
+        logger.exception("%s webhook request failed", channel)
         return False
 
 
-def send_slack_alert(payload: AlertTestRequest) -> bool:
+def send_slack_alert(payload: AlertTestRequest, config: AlertChannelConfig) -> bool:
     body = {
-        "text": f"[{payload.severity}] {payload.title}\n{payload.message}",
+        "text": f"[{payload.severity}] {_escape_slack_text(payload.title)}\n{_escape_slack_text(payload.message)}",
     }
-    return _post_webhook(settings.slack_webhook_url, body)
+    return _post_webhook(config.slack_webhook_url, body, channel="Slack")
 
 
-def send_teams_alert(payload: AlertTestRequest) -> bool:
+def send_teams_alert(payload: AlertTestRequest, config: AlertChannelConfig) -> bool:
     body = {
-        "title": f"[{payload.severity}] {payload.title}",
-        "text": payload.message,
+        "title": f"[{payload.severity}] {_escape_teams_text(payload.title)}",
+        "text": _escape_teams_text(payload.message),
     }
-    return _post_webhook(settings.teams_webhook_url, body)
+    return _post_webhook(config.teams_webhook_url, body, channel="Teams")
 
 
-def send_email_alert(payload: AlertTestRequest) -> bool:
-    recipient = (payload.recipient_email or "").strip() or settings.alert_email_to
+def send_email_alert(payload: AlertTestRequest, config: AlertChannelConfig) -> bool:
+    recipient = (payload.recipient_email or "").strip() or config.alert_email_to
 
     if not all(
         [
-            settings.smtp_host,
-            settings.alert_email_from,
+            config.smtp_host,
+            config.alert_email_from,
             recipient,
-            settings.smtp_username,
-            settings.smtp_password,
+            config.smtp_username,
+            config.smtp_password,
         ]
     ):
         return False
 
     msg = EmailMessage()
     msg["Subject"] = f"[{payload.severity}] {payload.title}"
-    msg["From"] = settings.alert_email_from
+    msg["From"] = config.alert_email_from
     msg["To"] = recipient
     msg.set_content(payload.message)
 
     try:
-        with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=10) as smtp:
+        with smtplib.SMTP(config.smtp_host, config.smtp_port, timeout=10) as smtp:
             smtp.starttls()
-            smtp.login(settings.smtp_username, settings.smtp_password)
+            smtp.login(config.smtp_username, config.smtp_password)
             smtp.send_message(msg)
     except smtplib.SMTPException:
+        logger.exception("SMTP send failed (host=%s, to=%s)", config.smtp_host, recipient)
+        return False
+    except OSError:
+        logger.exception("SMTP connection failed (host=%s)", config.smtp_host)
         return False
 
     return True
 
 
-def send_test_alert(payload: AlertTestRequest) -> AlertTestResponse:
+def send_test_alert(payload: AlertTestRequest, config: AlertChannelConfig) -> AlertTestResponse:
     return AlertTestResponse(
-        slack=send_slack_alert(payload),
-        teams=send_teams_alert(payload),
-        email=send_email_alert(payload),
+        slack=send_slack_alert(payload, config),
+        teams=send_teams_alert(payload, config),
+        email=send_email_alert(payload, config),
     )
 
 
@@ -96,7 +122,9 @@ def _resolve_focus_group(insights: InsightsResponse, payload: InsightNotifyReque
     return "unknown-service", "UnhandledError", "unknown-operation"
 
 
-def send_insight_notify_email(insights: InsightsResponse, payload: InsightNotifyRequest) -> InsightNotifyResponse:
+def send_insight_notify_email(
+    insights: InsightsResponse, payload: InsightNotifyRequest, config: AlertChannelConfig
+) -> InsightNotifyResponse:
     service_name, error_type, operation = _resolve_focus_group(insights, payload)
     target_group = f"{service_name} / {error_type} / {operation}"
 
@@ -120,7 +148,7 @@ def send_insight_notify_email(insights: InsightsResponse, payload: InsightNotify
         recipient_email=payload.recipient_email,
     )
 
-    sent = send_email_alert(send_payload)
+    sent = send_email_alert(send_payload, config)
     return InsightNotifyResponse(
         email=sent,
         recipient_email=payload.recipient_email,

@@ -1,5 +1,6 @@
 from fastapi import APIRouter
 
+from app.api.v1.routes.alert_settings import router as alert_settings_router
 from app.api.v1.routes.alerts import router as alerts_router
 from app.api.v1.routes.insights import router as insights_router
 from app.api.v1.routes.integrations import router as integrations_router
@@ -16,3 +17,4 @@ api_router.include_router(alerts_router)
 api_router.include_router(integrations_router)
 api_router.include_router(services_router)
 api_router.include_router(llm_settings_router)
+api_router.include_router(alert_settings_router)
