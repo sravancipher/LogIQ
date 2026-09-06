@@ -38,9 +38,8 @@ export default function NewProject() {
 
   const sendTestLog = async () => {
     if (!result?.api_key) { setTestResult('Create a project first.'); return; }
-    const res = await fetch('/api/v1/logs', {
+    const r = await apiFetch('/api/v1/logs', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-API-Key': result.api_key },
       body: JSON.stringify({
         logs: [{
           service_name: 'dashboard-test', operation: 'send_test', level: 'ERROR',
@@ -48,9 +47,8 @@ export default function NewProject() {
           error_type: 'TestError', source: 'dashboard',
         }],
       }),
-    });
-    const b = await res.json().catch(() => ({}));
-    setTestResult(res.ok ? `Accepted: ${b.accepted} log.` : `Failed: ${b.detail || 'error'}`);
+    }, result.api_key);
+    setTestResult(r.ok ? `Accepted: ${r.body.accepted} log.` : `Failed: ${r.body.detail || 'error'}`);
   };
 
   return (

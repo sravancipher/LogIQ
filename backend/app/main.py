@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -8,6 +9,16 @@ from app.api.v1.api import api_router
 from app.core.config import settings
 
 app = FastAPI(title=settings.app_name, version=settings.app_version)
+
+if settings.resolved_cors_origins:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.resolved_cors_origins,
+        allow_credentials=False,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
 app.include_router(api_router, prefix=settings.api_prefix)
 
 # ── React build (frontend/dist) ──────────────────────────────────────────────

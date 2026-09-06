@@ -9,6 +9,8 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+psycopg://postgres:postgres@localhost:5432/project_monitor"
     queue_poll_interval_seconds: int = 5
 
+    cors_origins: str = "https://logiq.thetechvoyager.in,http://localhost:8001"
+
     slack_webhook_url: str | None = None
     teams_webhook_url: str | None = None
     alert_email_from: str | None = None
@@ -58,6 +60,10 @@ class Settings(BaseSettings):
     @property
     def resolved_llm_temperature(self) -> float:
         return self.llm_temperature if self.llm_temperature is not None else self.ollama_temperature
+
+    @property
+    def resolved_cors_origins(self) -> list[str]:
+        return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
 
     @property
     def resolved_llm_api_key(self) -> str | None:

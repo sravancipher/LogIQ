@@ -7,8 +7,10 @@ export default defineConfig(({ mode }) => {
   const isProd = mode === 'production';
 
   return {
-    // In production the React app is served at /app by FastAPI
-    base: isProd ? '/app/' : '/',
+    // Two production build targets:
+    // - default 'production' mode: bundled into backend/dist and served at /app by FastAPI
+    // - 'pages' mode: built standalone for GitHub Pages, served at the domain root
+    base: mode === 'pages' ? '/' : isProd ? '/app/' : '/',
     plugins: [react()],
     server: {
       port: 8001,
