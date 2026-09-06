@@ -100,10 +100,12 @@ def test_send_teams_alert_posts_a_valid_adaptive_card(monkeypatch):
 
     assert result is True
     body = captured["json"]
-    # Teams Workflows' "When a Teams webhook request is received" trigger requires the
-    # POST body itself to be an Adaptive Card (root "type" == "AdaptiveCard"), not the
-    # legacy Office 365 Connector {"title", "text"} MessageCard shape.
-    assert body["type"] == "AdaptiveCard"
-    assert "$schema" in body
-    assert any("Payment timeout" in block["text"] for block in body["body"])
-    assert any("Errors spiking" in block["text"] for block in body["body"])
+    # The auto-generated Teams Workflow reads the card from a top-level "attachments"
+    # array (Bot Framework Activity shape); a bare AdaptiveCard at the root leaves that
+    # array null and misroutes the flow (observed as a Graph "not a ChatThread" error).
+    assert body["type"] == "message"
+    card = body["attachments"][0]["content"]
+    assert card["type"] == "AdaptiveCard"
+    assert "$schema" in card
+    assert any("Payment timeout" in block["text"] for block in card["body"])
+    assert any("Errors spiking" in block["text"] for block in card["body"])

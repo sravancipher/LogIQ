@@ -52,10 +52,11 @@ def send_slack_alert(payload: AlertTestRequest, config: AlertChannelConfig) -> b
 
 def send_teams_alert(payload: AlertTestRequest, config: AlertChannelConfig) -> bool:
     # Microsoft retired the legacy Office 365 Connector "MessageCard" format (a plain
-    # {"title": ..., "text": ...} body) in favor of Teams Workflows, whose "When a Teams
-    # webhook request is received" trigger requires the POST body to be an Adaptive Card
-    # object itself (root "type" must equal "AdaptiveCard") - not wrapped, not the old shape.
-    body = {
+    # {"title": ..., "text": ...} body) in favor of Teams Workflows. The auto-generated
+    # "When a Teams webhook request is received" flow reads the card from a top-level
+    # "attachments" array (a Bot Framework Activity shape) - a bare AdaptiveCard at the
+    # request root leaves that array null and sends the flow down the wrong branch.
+    adaptive_card = {
         "type": "AdaptiveCard",
         "$schema": "http://adaptivecards.io/schemas/adaptivecard.json",
         "version": "1.4",
@@ -72,6 +73,16 @@ def send_teams_alert(payload: AlertTestRequest, config: AlertChannelConfig) -> b
                 "text": _escape_teams_text(payload.message),
                 "wrap": True,
             },
+        ],
+    }
+    body = {
+        "type": "message",
+        "attachments": [
+            {
+                "contentType": "application/vnd.microsoft.card.adaptive",
+                "contentUrl": None,
+                "content": adaptive_card,
+            }
         ],
     }
     return _post_webhook(config.teams_webhook_url, body, channel="Teams")
