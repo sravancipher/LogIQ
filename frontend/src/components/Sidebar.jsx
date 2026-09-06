@@ -1,5 +1,6 @@
 import React, { useContext } from 'react';
 import { AppContext } from '../App.jsx';
+import logo from '../assets/project_logo_bg.png';
 
 const NAV_ITEMS = [
   { id: 'page-home',         icon: '\u25C9', label: 'Overview' },
@@ -17,7 +18,7 @@ export default function Sidebar({ activePage, navigateTo }) {
   return (
     <aside id="sidebar">
       <div className="sidebar-logo">
-        <img src="/dashboard/assets/project_logo_bg.png" alt="LogIQ" style={{ height: 40, width: 'auto' }} />
+        <img src={logo} alt="LogIQ" style={{ height: 40, width: 'auto' }} />
       </div>
       <div className="nav-section">Navigation</div>
       <nav>
