@@ -9,6 +9,10 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+psycopg://postgres:postgres@localhost:5432/project_monitor"
     queue_poll_interval_seconds: int = 5
 
+    health_check_enabled: bool = True
+    health_check_interval_seconds: int = 60
+    health_check_lookback_minutes: int = 15
+
     cors_origins: str = "https://logiq.thetechvoyager.in,http://localhost:8001"
 
     slack_webhook_url: str | None = None

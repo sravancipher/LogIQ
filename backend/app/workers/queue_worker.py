@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import logging
 import time
+from datetime import datetime, timedelta, timezone
 
 from app.core.config import settings
 from app.db.session import SessionLocal
+from app.services.health_alert_service import check_and_alert_unhealthy_services
 from app.services.queue_service import fetch_pending_jobs, mark_job_done, mark_job_failed
 
 logger = logging.getLogger(__name__)
@@ -19,6 +21,8 @@ def process_job_payload(task_type: str, payload: dict | None) -> None:
 
 def run_worker() -> None:
     logger.info("Queue worker started")
+    next_health_check_at = datetime.now(timezone.utc)
+
     while True:
         db = SessionLocal()
         try:
@@ -30,6 +34,13 @@ def run_worker() -> None:
                 except Exception as exc:  # noqa: BLE001
                     mark_job_failed(db, job, str(exc))
             db.commit()
+
+            now = datetime.now(timezone.utc)
+            if settings.health_check_enabled and now >= next_health_check_at:
+                alerts_sent = check_and_alert_unhealthy_services(db)
+                if alerts_sent:
+                    logger.info("Sent %d service-health alert(s)", alerts_sent)
+                next_health_check_at = now + timedelta(seconds=settings.health_check_interval_seconds)
         except Exception:  # noqa: BLE001
             db.rollback()
             logger.exception("Worker cycle failed")

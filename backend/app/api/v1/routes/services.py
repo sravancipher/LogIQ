@@ -1,22 +1,13 @@
-from datetime import datetime, timedelta, timezone
-
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session
 
 from app.core.security import AuthContext, require_api_key
 from app.db.session import get_db
-from app.models.log import Log
-from app.schemas.service import ServiceSummary, ServicesListResponse
+from app.schemas.service import HealthCheckResponse, ServiceSummary, ServicesListResponse
+from app.services.health_alert_service import check_project_services
+from app.services.health_service import compute_service_health
 
 router = APIRouter(prefix="/services", tags=["services"])
-
-
-def _compute_status(error_logs: int, total_logs: int) -> str:
-    if error_logs == 0:
-        return "healthy"
-    ratio = error_logs / total_logs if total_logs else 1.0
-    return "critical" if ratio >= 0.30 else "degraded"
 
 
 @router.get("", response_model=ServicesListResponse)
@@ -29,38 +20,33 @@ def list_services(
     Return all distinct uvicorn/service instances that have sent logs within
     the given lookback window, along with per-service error counts and status.
     """
-    since = datetime.now(timezone.utc) - timedelta(minutes=lookback_minutes)
-
-    rows = db.execute(
-        select(
-            Log.service_name,
-            func.count().label("total_logs"),
-            func.sum(
-                case((func.upper(Log.level).in_(["ERROR", "CRITICAL"]), 1), else_=0)
-            ).label("error_logs"),
-            func.max(Log.created_at).label("last_seen"),
+    health = compute_service_health(db, auth.project_id, lookback_minutes)
+    services = [
+        ServiceSummary(
+            service_name=h.service_name,
+            total_logs=h.total_logs,
+            error_logs=h.error_logs,
+            last_seen=h.last_seen,
+            status=h.status,
         )
-        .where(
-            Log.project_id == auth.project_id,
-            Log.created_at >= since,
-            Log.service_name.is_not(None),
-        )
-        .group_by(Log.service_name)
-        .order_by(func.max(Log.created_at).desc())
-    ).all()
-
-    services: list[ServiceSummary] = []
-    for row in rows:
-        total = row.total_logs or 0
-        errors = row.error_logs or 0
-        services.append(
-            ServiceSummary(
-                service_name=row.service_name,
-                total_logs=total,
-                error_logs=errors,
-                last_seen=row.last_seen,
-                status=_compute_status(errors, total),
-            )
-        )
-
+        for h in health
+    ]
     return ServicesListResponse(services=services)
+
+
+@router.post("/health-check", response_model=HealthCheckResponse)
+def run_health_check(
+    auth: AuthContext = Depends(require_api_key),
+    db: Session = Depends(get_db),
+) -> HealthCheckResponse:
+    """
+    Compute this project's current service health and send an alert (via this
+    project's configured Slack/Teams/email channels) for any service that has
+    newly become unhealthy, changed severity, or just recovered.
+
+    Call this on a schedule from an external cron/uptime-monitor (e.g. cron-job.org,
+    GitHub Actions, UptimeRobot) to get automated alerting without needing a
+    separately-hosted always-on background worker process.
+    """
+    checked, alerts_sent = check_project_services(db, auth.project_id)
+    return HealthCheckResponse(services_checked=checked, alerts_sent=alerts_sent)

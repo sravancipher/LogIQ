@@ -13,3 +13,8 @@ class ServiceSummary(BaseModel):
 
 class ServicesListResponse(BaseModel):
     services: list[ServiceSummary]
+
+
+class HealthCheckResponse(BaseModel):
+    services_checked: int
+    alerts_sent: int
