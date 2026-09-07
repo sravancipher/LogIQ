@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import smtplib
+from dataclasses import replace
 from email.message import EmailMessage
 from typing import Any
 
@@ -159,6 +160,11 @@ def send_insight_notification(
     selected in payload.channels. Slack and Teams are pure webhook posts (no address
     needed - the destination is whatever this project's config.slack_webhook_url /
     config.teams_webhook_url points at); only "email" needs payload.recipient_email.
+
+    payload.teams_webhook_url, if given, overrides config.teams_webhook_url for this
+    one send only (e.g. a one-to-one chat webhook typed in on the AI Insights page) -
+    it is never persisted; the project's saved Teams webhook (Alert Settings) is used
+    whenever it's left blank.
     """
     service_name, error_type, operation = _resolve_focus_group(insights, payload)
     target_group = f"{service_name} / {error_type} / {operation}"
@@ -183,9 +189,11 @@ def send_insight_notification(
         recipient_email=payload.recipient_email,
     )
 
+    teams_config = replace(config, teams_webhook_url=payload.teams_webhook_url) if payload.teams_webhook_url else config
+
     email_sent = "email" in payload.channels and send_email_alert(send_payload, config)
     slack_sent = "slack" in payload.channels and send_slack_alert(send_payload, config)
-    teams_sent = "teams" in payload.channels and send_teams_alert(send_payload, config)
+    teams_sent = "teams" in payload.channels and send_teams_alert(send_payload, teams_config)
     any_sent = email_sent or slack_sent or teams_sent
 
     return InsightNotifyResponse(

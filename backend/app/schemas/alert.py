@@ -47,6 +47,14 @@ class InsightNotifyRequest(BaseModel):
     recipient_email: str | None = Field(
         default=None, max_length=320, description="Required only when 'email' is included in channels."
     )
+    teams_webhook_url: str | None = Field(
+        default=None,
+        max_length=1000,
+        description=(
+            "One-off Teams webhook URL for this notification only (e.g. a one-to-one chat webhook) - "
+            "never saved. Leave blank to use this project's saved Teams webhook from Alert Settings."
+        ),
+    )
     lookback_minutes: int = Field(default=60, ge=5, le=43200)
     deep_analysis: bool = False
     severity: str = Field(default="HIGH", max_length=20)
@@ -59,6 +67,15 @@ class InsightNotifyRequest(BaseModel):
     @classmethod
     def _check_recipient_email(cls, v: str | None) -> str | None:
         return _validate_email_format(v)
+
+    @field_validator("teams_webhook_url")
+    @classmethod
+    def _check_teams_webhook_url(cls, v: str | None) -> str | None:
+        if v is None or v == "":
+            return v
+        if not v.startswith("https://"):
+            raise ValueError("teams_webhook_url must be an https:// URL")
+        return v
 
     @model_validator(mode="after")
     def _require_email_when_channel_selected(self) -> "InsightNotifyRequest":

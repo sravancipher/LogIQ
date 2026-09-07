@@ -54,6 +54,7 @@ export default function AIInsights() {
   const [emptyMsg, setEmptyMsg] = useState('Select a window and click Analyse.');
   const [notifyEmail, setNotifyEmail] = useState('');
   const [notifyChannels, setNotifyChannels] = useState(['email']);
+  const [notifyTeamsWebhookUrl, setNotifyTeamsWebhookUrl] = useState('');
   const [notifyGroupIndex, setNotifyGroupIndex] = useState('');
   const [notifyNote, setNotifyNote] = useState('');
   const [notifyAlert, setNotifyAlert] = useState({ show: false, msg: '', type: '' });
@@ -103,6 +104,7 @@ export default function AIInsights() {
     const payload = {
       channels: notifyChannels,
       recipient_email: notifyEmail.trim() || null,
+      teams_webhook_url: notifyTeamsWebhookUrl.trim() || null,
       lookback_minutes: Number(lookback),
       deep_analysis: deepAnalysis,
       note: notifyNote.trim() || null,
@@ -314,14 +316,29 @@ export default function AIInsights() {
                 ))}
               </div>
               <p className="form-hint">
-                Slack and Teams are delivered to this project's configured webhook (see the Alerts page) - no
-                address needed for those. Email is sent via SMTP to the address below.
+                By default, Slack and Teams are delivered to this project's saved webhook (see the Alerts page).
+                Email is sent via SMTP to the address below.
               </p>
             </div>
             {notifyChannels.includes('email') && (
               <div className="form-row">
                 <label>Recipient Email *</label>
                 <input type="email" placeholder="e.g. owner@company.com" value={notifyEmail} onChange={e => setNotifyEmail(e.target.value)} />
+              </div>
+            )}
+            {notifyChannels.includes('teams') && (
+              <div className="form-row">
+                <label>Teams Webhook URL (optional, one-time use)</label>
+                <input
+                  type="text"
+                  placeholder="Leave blank to use this project's saved Teams webhook"
+                  value={notifyTeamsWebhookUrl}
+                  onChange={e => setNotifyTeamsWebhookUrl(e.target.value)}
+                />
+                <p className="form-hint">
+                  Paste a channel or one-to-one chat webhook URL to send just this notification there instead of
+                  the saved default - this is used once and is never stored.
+                </p>
               </div>
             )}
             <div className="form-row">

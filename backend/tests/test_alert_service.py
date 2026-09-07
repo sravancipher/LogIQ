@@ -172,6 +172,60 @@ def test_send_insight_notification_requires_recipient_email_for_email_channel():
         InsightNotifyRequest(channels=["email"])
 
 
+def test_insight_notify_rejects_non_https_teams_webhook_url():
+    import pytest
+
+    with pytest.raises(ValueError, match="https://"):
+        InsightNotifyRequest(channels=["teams"], teams_webhook_url="http://insecure.example.com/hook")
+
+
+def test_send_insight_notification_ad_hoc_teams_webhook_overrides_saved_one(monkeypatch):
+    posted_urls = []
+
+    class _Resp:
+        status_code = 200
+
+    def fake_post(url, json, timeout):
+        posted_urls.append(url)
+        return _Resp()
+
+    monkeypatch.setattr("app.services.alert_service.requests.post", fake_post)
+
+    config = resolve_alert_config(_FakeScalarDb(row=None), uuid.uuid4())
+    config.teams_webhook_url = "https://example.webhook.office.com/webhookb2/saved-channel"
+
+    ad_hoc_url = "https://example.webhook.office.com/webhookb2/one-to-one-chat"
+    payload = InsightNotifyRequest(channels=["teams"], teams_webhook_url=ad_hoc_url)
+    result = send_insight_notification(_make_insights(), payload, config)
+
+    assert result.teams is True
+    assert posted_urls == [ad_hoc_url]
+    # The project's saved webhook must be untouched by the override.
+    assert config.teams_webhook_url == "https://example.webhook.office.com/webhookb2/saved-channel"
+
+
+def test_send_insight_notification_falls_back_to_saved_teams_webhook_when_ad_hoc_blank(monkeypatch):
+    posted_urls = []
+
+    class _Resp:
+        status_code = 200
+
+    def fake_post(url, json, timeout):
+        posted_urls.append(url)
+        return _Resp()
+
+    monkeypatch.setattr("app.services.alert_service.requests.post", fake_post)
+
+    config = resolve_alert_config(_FakeScalarDb(row=None), uuid.uuid4())
+    config.teams_webhook_url = "https://example.webhook.office.com/webhookb2/saved-channel"
+
+    payload = InsightNotifyRequest(channels=["teams"])
+    result = send_insight_notification(_make_insights(), payload, config)
+
+    assert result.teams is True
+    assert posted_urls == [config.teams_webhook_url]
+
+
 def test_send_insight_notification_email_only_does_not_touch_webhooks(monkeypatch):
     calls = {"webhook": 0}
 
