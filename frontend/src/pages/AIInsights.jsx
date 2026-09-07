@@ -27,6 +27,8 @@ function ErrorGroupsTable({ groups }) {
   );
 }
 
+const LOG_LEVELS = ['INFO', 'WARN', 'ERROR', 'CRITICAL', 'DEBUG'];
+
 function ContribGroupTags({ groups }) {
   if (!Array.isArray(groups) || !groups.length) {
     return <span className="tag">No dependent groups detected</span>;
@@ -46,6 +48,7 @@ export default function AIInsights() {
   const { apiKey } = useContext(AppContext);
   const [lookback, setLookback] = useState('60');
   const [deepAnalysis, setDeepAnalysis] = useState(false);
+  const [selectedLevels, setSelectedLevels] = useState([]); // [] = all levels
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [emptyMsg, setEmptyMsg] = useState('Select a window and click Analyse.');
@@ -54,15 +57,18 @@ export default function AIInsights() {
   const [notifyNote, setNotifyNote] = useState('');
   const [notifyAlert, setNotifyAlert] = useState({ show: false, msg: '', type: '' });
 
+  const toggleLevel = (level) => {
+    setSelectedLevels(prev => prev.includes(level) ? prev.filter(l => l !== level) : [...prev, level]);
+  };
+
   const loadInsights = async () => {
     if (!apiKey) return;
     setLoading(true);
     setResult(null);
     setEmptyMsg('');
-    const r = await apiFetch(
-      `/api/v1/insights?lookback_minutes=${lookback}&deep_analysis=${deepAnalysis}`,
-      {}, apiKey
-    );
+    const params = new URLSearchParams({ lookback_minutes: lookback, deep_analysis: String(deepAnalysis) });
+    selectedLevels.forEach(l => params.append('levels', l));
+    const r = await apiFetch(`/api/v1/insights?${params.toString()}`, {}, apiKey);
     setLoading(false);
     if (!r.ok) {
       setEmptyMsg(r.body.detail || 'Failed.');
@@ -150,10 +156,49 @@ export default function AIInsights() {
           <button className="btn btn-primary" onClick={loadInsights}>Analyse</button>
           {loading && <span><span className="spinner"></span></span>}
         </div>
+        <div className="form-row" style={{ marginBottom: 0, marginTop: '12px' }}>
+          <label>Log Levels to Analyse</label>
+          <div className="gap-8" style={{ flexWrap: 'wrap' }}>
+            <span
+              className="tag"
+              style={{
+                cursor: 'pointer',
+                borderColor: selectedLevels.length === 0 ? 'var(--cyan)' : undefined,
+                color: selectedLevels.length === 0 ? 'var(--cyan)' : undefined,
+              }}
+              onClick={() => setSelectedLevels([])}
+            >
+              All Levels
+            </span>
+            {LOG_LEVELS.map(level => (
+              <span
+                key={level}
+                className="tag"
+                style={{
+                  cursor: 'pointer',
+                  borderColor: selectedLevels.includes(level) ? 'var(--cyan)' : undefined,
+                  color: selectedLevels.includes(level) ? 'var(--cyan)' : undefined,
+                }}
+                onClick={() => toggleLevel(level)}
+              >
+                {level}
+              </span>
+            ))}
+          </div>
+          <p className="form-hint">
+            Pick one or more levels (e.g. only WARN + ERROR) to scope the analysis, or leave "All Levels" selected
+            to analyse everything, as before.
+          </p>
+        </div>
       </div>
 
       {result ? (
         <div>
+          <p className="form-hint" style={{ marginBottom: '12px' }}>
+            Scope: {Array.isArray(result.levels_filter) && result.levels_filter.length > 0
+              ? result.levels_filter.join(', ')
+              : 'All Levels'}
+          </p>
           <div className="grid4 mb-16">
             <div className="stat-card">
               <div className="stat-bar cyan"></div>

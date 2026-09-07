@@ -14,6 +14,7 @@ router = APIRouter(prefix="/insights", tags=["insights"])
 def get_insights(
     lookback_minutes: int = Query(default=60, ge=5, le=43200),
     deep_analysis: bool = Query(default=False),
+    levels: list[str] | None = Query(default=None, description="Restrict analysis to these log levels (e.g. ERROR, WARN, INFO). Omit for all levels."),
     auth: AuthContext = Depends(require_api_key),
     db: Session = Depends(get_db),
 ) -> InsightsResponse:
@@ -22,6 +23,7 @@ def get_insights(
         project_id=auth.project_id,
         lookback_minutes=lookback_minutes,
         deep_analysis=deep_analysis,
+        levels=levels,
     )
 
 

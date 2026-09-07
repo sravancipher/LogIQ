@@ -177,6 +177,74 @@ def _make_log(seconds_ago: int) -> Log:
     )
 
 
+def test_collect_insight_inputs_filters_by_level(monkeypatch):
+    captured_filters = {}
+
+    class _FakeResult:
+        def all(self):
+            return []
+
+        def first(self):
+            return None
+
+    class _FakeQueryDb:
+        def scalar(self, stmt, *_args, **_kwargs):
+            captured_filters["whereclause"] = str(stmt)
+            return 0
+
+        def execute(self, *_args, **_kwargs):
+            return _FakeResult()
+
+        def scalars(self, *_args, **_kwargs):
+            return _FakeResult()
+
+    insights_service._collect_insight_inputs(
+        db=_FakeQueryDb(), project_id=uuid.uuid4(), lookback_minutes=60, levels=["WARN", "error"]
+    )
+
+    # The level filter must be case-normalized (upper) and present in the compiled query.
+    assert "upper(logs.level) IN" in captured_filters["whereclause"]
+
+
+def test_build_insights_echoes_levels_filter(monkeypatch):
+    project_id = uuid.uuid4()
+    fake_metrics = {
+        "total_logs": 2,
+        "error_logs": 0,
+        "top_error_type": None,
+        "top_service": None,
+        "error_groups": [],
+        "target_error_group": None,
+        "contributing_error_groups": [],
+    }
+
+    monkeypatch.setattr(
+        insights_service,
+        "_collect_insight_inputs",
+        lambda db, project_id, lookback_minutes, levels=None: (fake_metrics, []),
+    )
+    monkeypatch.setattr(
+        insights_service,
+        "resolve_llm_config",
+        lambda db, project_id: insights_service.LlmRuntimeConfig(
+            enabled=False,
+            provider="ollama",
+            base_url="",
+            model="",
+            api_key=None,
+            temperature=0.1,
+            timeout_seconds=10,
+            max_tokens=2048,
+        ),
+    )
+
+    result = insights_service.build_insights(
+        db=None, project_id=project_id, lookback_minutes=60, levels=["WARN", "ERROR"]
+    )
+
+    assert result.levels_filter == ["WARN", "ERROR"]
+
+
 def test_build_timeline_returns_newest_logs_oldest_first():
     # recent_logs is ordered created_at DESC (index 0 = newest).
     logs = [_make_log(seconds_ago) for seconds_ago in range(25)]

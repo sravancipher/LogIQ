@@ -49,6 +49,9 @@ class InsightsResponse(BaseModel):
     analysis_mode: Literal["llm", "fallback"] = "fallback"
     model_name: str | None = None
     fallback_reason: str | None = None
+    levels_filter: list[str] | None = Field(
+        default=None, description="Log levels this analysis was scoped to, or null for all levels."
+    )
 
 
 class InsightFeedbackCreate(BaseModel):

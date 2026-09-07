@@ -132,9 +132,13 @@ def build_insights(
     project_id: uuid.UUID,
     lookback_minutes: int,
     deep_analysis: bool = False,
+    levels: list[str] | None = None,
 ) -> InsightsResponse:
-    metrics, recent_logs = _collect_insight_inputs(db=db, project_id=project_id, lookback_minutes=lookback_minutes)
+    metrics, recent_logs = _collect_insight_inputs(
+        db=db, project_id=project_id, lookback_minutes=lookback_minutes, levels=levels
+    )
     fallback = _build_rule_based_insights(project_id, lookback_minutes, metrics, recent_logs)
+    fallback.levels_filter = levels
 
     llm_config = resolve_llm_config(db, project_id)
 
@@ -157,6 +161,7 @@ def build_insights(
         fallback.fallback_reason = "LLM analysis unavailable or response invalid"
         return fallback
 
+    llm_response.levels_filter = levels
     return llm_response
 
 
@@ -164,10 +169,13 @@ def _collect_insight_inputs(
     db: Session,
     project_id: uuid.UUID,
     lookback_minutes: int,
+    levels: list[str] | None = None,
 ) -> tuple[dict[str, Any], list[Log]]:
     now = datetime.now(timezone.utc)
     window_start = now - timedelta(minutes=lookback_minutes)
     base_filters = [Log.project_id == project_id, Log.created_at >= window_start]
+    if levels:
+        base_filters.append(func.upper(Log.level).in_([lvl.upper() for lvl in levels]))
 
     total_logs = db.scalar(select(func.count()).select_from(Log).where(*base_filters)) or 0
     error_logs = (
