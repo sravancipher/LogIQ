@@ -53,9 +53,15 @@ export default function AIInsights() {
   const [result, setResult] = useState(null);
   const [emptyMsg, setEmptyMsg] = useState('Select a window and click Analyse.');
   const [notifyEmail, setNotifyEmail] = useState('');
+  const [notifyChannels, setNotifyChannels] = useState(['email']);
   const [notifyGroupIndex, setNotifyGroupIndex] = useState('');
   const [notifyNote, setNotifyNote] = useState('');
   const [notifyAlert, setNotifyAlert] = useState({ show: false, msg: '', type: '' });
+  const [notifyDelivery, setNotifyDelivery] = useState(null);
+
+  const toggleNotifyChannel = (channel) => {
+    setNotifyChannels(prev => prev.includes(channel) ? prev.filter(c => c !== channel) : [...prev, channel]);
+  };
 
   const toggleLevel = (level) => {
     setSelectedLevels(prev => prev.includes(level) ? prev.filter(l => l !== level) : [...prev, level]);
@@ -78,8 +84,12 @@ export default function AIInsights() {
   };
 
   const notifyFromInsight = async () => {
-    if (!notifyEmail.trim()) {
-      setNotifyAlert({ show: true, msg: 'Recipient email is required.', type: 'error' });
+    if (notifyChannels.length === 0) {
+      setNotifyAlert({ show: true, msg: 'Select at least one channel (Email, Slack, or Teams).', type: 'error' });
+      return;
+    }
+    if (notifyChannels.includes('email') && !notifyEmail.trim()) {
+      setNotifyAlert({ show: true, msg: 'Recipient email is required when Email is selected.', type: 'error' });
       return;
     }
     if (!apiKey) {
@@ -91,7 +101,8 @@ export default function AIInsights() {
       return;
     }
     const payload = {
-      recipient_email: notifyEmail.trim(),
+      channels: notifyChannels,
+      recipient_email: notifyEmail.trim() || null,
       lookback_minutes: Number(lookback),
       deep_analysis: deepAnalysis,
       note: notifyNote.trim() || null,
@@ -104,6 +115,7 @@ export default function AIInsights() {
       payload.target_operation    = g.operation;
     }
     setNotifyAlert({ show: false, msg: '', type: '' });
+    setNotifyDelivery(null);
     const res = await apiFetch('/api/v1/alerts/insights/notify', {
       method: 'POST',
       body: JSON.stringify(payload),
@@ -112,10 +124,16 @@ export default function AIInsights() {
       setNotifyAlert({ show: true, msg: res.body.detail || 'Failed to send insight notification.', type: 'error' });
       return;
     }
-    if (res.body.email) {
-      setNotifyAlert({ show: true, msg: `Insight notification sent to ${res.body.recipient_email}.`, type: 'success' });
+    setNotifyDelivery({ email: res.body.email, slack: res.body.slack, teams: res.body.teams });
+    const anyDelivered = res.body.email || res.body.slack || res.body.teams;
+    if (anyDelivered) {
+      setNotifyAlert({ show: true, msg: 'Insight notification sent. See delivery status below.', type: 'success' });
     } else {
-      setNotifyAlert({ show: true, msg: `${res.body.message || 'Notification was not delivered.'} Check SMTP settings.`, type: 'error' });
+      setNotifyAlert({
+        show: true,
+        msg: `${res.body.message || 'Notification was not delivered.'} Check that the selected channel(s) are configured on the Alerts page.`,
+        type: 'error',
+      });
     }
   };
 
@@ -278,9 +296,34 @@ export default function AIInsights() {
               <div className={`alert-box ${notifyAlert.type}`}>{notifyAlert.msg}</div>
             )}
             <div className="form-row">
-              <label>Recipient Email *</label>
-              <input type="email" placeholder="e.g. owner@company.com" value={notifyEmail} onChange={e => setNotifyEmail(e.target.value)} />
+              <label>Send Via</label>
+              <div className="gap-8" style={{ flexWrap: 'wrap' }}>
+                {['email', 'slack', 'teams'].map(channel => (
+                  <span
+                    key={channel}
+                    className="tag"
+                    style={{
+                      cursor: 'pointer',
+                      borderColor: notifyChannels.includes(channel) ? 'var(--cyan)' : undefined,
+                      color: notifyChannels.includes(channel) ? 'var(--cyan)' : undefined,
+                    }}
+                    onClick={() => toggleNotifyChannel(channel)}
+                  >
+                    {channel === 'email' ? 'Email' : channel === 'slack' ? 'Slack' : 'Microsoft Teams'}
+                  </span>
+                ))}
+              </div>
+              <p className="form-hint">
+                Slack and Teams are delivered to this project's configured webhook (see the Alerts page) - no
+                address needed for those. Email is sent via SMTP to the address below.
+              </p>
             </div>
+            {notifyChannels.includes('email') && (
+              <div className="form-row">
+                <label>Recipient Email *</label>
+                <input type="email" placeholder="e.g. owner@company.com" value={notifyEmail} onChange={e => setNotifyEmail(e.target.value)} />
+              </div>
+            )}
             <div className="form-row">
               <label>Error Group (optional)</label>
               <select value={notifyGroupIndex} onChange={e => setNotifyGroupIndex(e.target.value)}>
@@ -292,8 +335,23 @@ export default function AIInsights() {
             </div>
             <div className="form-row">
               <label>Optional Note</label>
-              <textarea rows={3} placeholder="Any extra context to include in the email" value={notifyNote} onChange={e => setNotifyNote(e.target.value)}></textarea>
+              <textarea rows={3} placeholder="Any extra context to include in the notification" value={notifyNote} onChange={e => setNotifyNote(e.target.value)}></textarea>
             </div>
+            {notifyDelivery && (
+              <table style={{ marginBottom: '12px' }}>
+                <tbody>
+                  {notifyChannels.includes('slack') && (
+                    <tr><td>Slack</td><td>{notifyDelivery.slack ? <span className="badge badge-active">Delivered</span> : <span className="badge badge-inactive">Not delivered</span>}</td></tr>
+                  )}
+                  {notifyChannels.includes('teams') && (
+                    <tr><td>Microsoft Teams</td><td>{notifyDelivery.teams ? <span className="badge badge-active">Delivered</span> : <span className="badge badge-inactive">Not delivered</span>}</td></tr>
+                  )}
+                  {notifyChannels.includes('email') && (
+                    <tr><td>Email (SMTP)</td><td>{notifyDelivery.email ? <span className="badge badge-active">Delivered</span> : <span className="badge badge-inactive">Not delivered</span>}</td></tr>
+                  )}
+                </tbody>
+              </table>
+            )}
             <button className="btn btn-primary" onClick={notifyFromInsight}>Send Insight Notification</button>
           </div>
         </div>

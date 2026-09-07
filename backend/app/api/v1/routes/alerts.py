@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from app.core.security import AuthContext, require_api_key
 from app.db.session import get_db
 from app.schemas.alert import AlertTestRequest, AlertTestResponse, InsightNotifyRequest, InsightNotifyResponse
-from app.services.alert_service import send_insight_notify_email, send_test_alert
+from app.services.alert_service import send_insight_notification, send_test_alert
 from app.services.alert_settings_service import resolve_alert_config
 from app.services.insights_service import build_insights
 
@@ -34,4 +34,4 @@ def notify_from_insights(
         deep_analysis=payload.deep_analysis,
     )
     config = resolve_alert_config(db, auth.project_id)
-    return send_insight_notify_email(insights, payload, config)
+    return send_insight_notification(insights, payload, config)

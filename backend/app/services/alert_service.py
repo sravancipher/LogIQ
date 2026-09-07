@@ -152,9 +152,14 @@ def _resolve_focus_group(insights: InsightsResponse, payload: InsightNotifyReque
     return "unknown-service", "UnhandledError", "unknown-operation"
 
 
-def send_insight_notify_email(
+def send_insight_notification(
     insights: InsightsResponse, payload: InsightNotifyRequest, config: AlertChannelConfig
 ) -> InsightNotifyResponse:
+    """Send an insight notification through whichever of email/Slack/Teams the caller
+    selected in payload.channels. Slack and Teams are pure webhook posts (no address
+    needed - the destination is whatever this project's config.slack_webhook_url /
+    config.teams_webhook_url points at); only "email" needs payload.recipient_email.
+    """
     service_name, error_type, operation = _resolve_focus_group(insights, payload)
     target_group = f"{service_name} / {error_type} / {operation}"
 
@@ -178,11 +183,17 @@ def send_insight_notify_email(
         recipient_email=payload.recipient_email,
     )
 
-    sent = send_email_alert(send_payload, config)
+    email_sent = "email" in payload.channels and send_email_alert(send_payload, config)
+    slack_sent = "slack" in payload.channels and send_slack_alert(send_payload, config)
+    teams_sent = "teams" in payload.channels and send_teams_alert(send_payload, config)
+    any_sent = email_sent or slack_sent or teams_sent
+
     return InsightNotifyResponse(
-        email=sent,
+        email=email_sent,
+        slack=slack_sent,
+        teams=teams_sent,
         recipient_email=payload.recipient_email,
         target_error_group=target_group,
         analysis_mode=insights.analysis_mode,
-        message="Insight notification sent" if sent else "Failed to send insight notification",
+        message="Insight notification sent" if any_sent else "Failed to send insight notification",
     )

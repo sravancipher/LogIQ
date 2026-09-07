@@ -1,6 +1,7 @@
 import re
+from typing import Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 # Lenient boundary check: rejects obviously malformed input (no "@", no ".", embedded
 # whitespace) without imposing a new dependency (pydantic's EmailStr needs email-validator,
@@ -34,8 +35,18 @@ class AlertTestResponse(BaseModel):
     email: bool
 
 
+NotifyChannel = Literal["email", "slack", "teams"]
+
+
 class InsightNotifyRequest(BaseModel):
-    recipient_email: str = Field(min_length=5, max_length=320)
+    channels: list[NotifyChannel] = Field(
+        default_factory=lambda: ["email"],
+        min_length=1,
+        description="Which configured channel(s) to notify through for this insight.",
+    )
+    recipient_email: str | None = Field(
+        default=None, max_length=320, description="Required only when 'email' is included in channels."
+    )
     lookback_minutes: int = Field(default=60, ge=5, le=43200)
     deep_analysis: bool = False
     severity: str = Field(default="HIGH", max_length=20)
@@ -46,13 +57,21 @@ class InsightNotifyRequest(BaseModel):
 
     @field_validator("recipient_email")
     @classmethod
-    def _check_recipient_email(cls, v: str) -> str:
+    def _check_recipient_email(cls, v: str | None) -> str | None:
         return _validate_email_format(v)
+
+    @model_validator(mode="after")
+    def _require_email_when_channel_selected(self) -> "InsightNotifyRequest":
+        if "email" in self.channels and not (self.recipient_email or "").strip():
+            raise ValueError("recipient_email is required when 'email' is included in channels")
+        return self
 
 
 class InsightNotifyResponse(BaseModel):
     email: bool
-    recipient_email: str
+    slack: bool
+    teams: bool
+    recipient_email: str | None
     target_error_group: str
     analysis_mode: str
     message: str
