@@ -72,6 +72,7 @@ export default function LlmSettings() {
   const { apiKey } = useContext(AppContext);
   const [effective, setEffective] = useState(null);
   const [form, setForm] = useState(DEFAULT_FORM);
+  const [savedForm, setSavedForm] = useState(DEFAULT_FORM);
   const [apiKeyInput, setApiKeyInput] = useState('');
   const [clearApiKey, setClearApiKey] = useState(false);
   const [alert, setAlert] = useState({ show: false, msg: '', type: '' });
@@ -79,6 +80,7 @@ export default function LlmSettings() {
   const [busy, setBusy] = useState(false);
 
   const info = PROVIDER_INFO[form.provider] || PROVIDER_INFO.ollama;
+  const isDirty = JSON.stringify(form) !== JSON.stringify(savedForm) || apiKeyInput.trim() !== '' || clearApiKey;
 
   const showAlert = (msg, type = 'info') => setAlert({ show: true, msg, type });
   const hideAlert = () => setAlert({ show: false, msg: '', type: '' });
@@ -88,14 +90,16 @@ export default function LlmSettings() {
     const r = await apiFetch('/api/v1/llm-settings', {}, apiKey);
     if (r.ok) {
       setEffective(r.body);
-      setForm({
+      const next = {
         enabled: r.body.enabled,
         provider: normalizeProvider(r.body.provider),
         base_url: r.body.base_url || '',
         model: r.body.model || '',
         temperature: r.body.temperature ?? 0.1,
         api_version: r.body.api_version || '',
-      });
+      };
+      setForm(next);
+      setSavedForm(next);
     }
   }, [apiKey]);
 
@@ -125,6 +129,16 @@ export default function LlmSettings() {
     setBusy(false);
     if (!r.ok) { showAlert(r.body.detail || 'Failed to save LLM settings.', 'error'); return; }
     setEffective(r.body);
+    const next = {
+      enabled: r.body.enabled,
+      provider: normalizeProvider(r.body.provider),
+      base_url: r.body.base_url || '',
+      model: r.body.model || '',
+      temperature: r.body.temperature ?? 0.1,
+      api_version: r.body.api_version || '',
+    };
+    setForm(next);
+    setSavedForm(next);
     setApiKeyInput('');
     setClearApiKey(false);
     showAlert('Saved. This project will use this configuration for AI Insights.', 'success');
@@ -144,6 +158,7 @@ export default function LlmSettings() {
 
   const testConnection = async () => {
     if (!apiKey) { showAlert('Enter your API key in the sidebar.', 'error'); return; }
+    if (isDirty) { showAlert('You have unsaved changes — click Save first, then Test Connection.', 'error'); return; }
     setTestResult(null);
     setBusy(true);
     const r = await apiFetch('/api/v1/llm-settings/test', { method: 'POST' }, apiKey);
@@ -263,11 +278,24 @@ export default function LlmSettings() {
 
           <div className="gap-8">
             <button className="btn btn-primary" disabled={busy} onClick={save}>Save</button>
-            <button className="btn btn-ghost" disabled={busy} onClick={testConnection}>Test Connection</button>
+            <button
+              className="btn btn-ghost"
+              disabled={busy}
+              title={isDirty ? 'Save your changes first, then test the connection.' : undefined}
+              onClick={testConnection}
+            >
+              Test Connection
+            </button>
             {effective?.has_override && (
               <button className="btn btn-danger" disabled={busy} onClick={resetToDefault}>Reset to Default</button>
             )}
           </div>
+
+          {isDirty && (
+            <p className="form-hint" style={{ marginTop: '8px' }}>
+              You have unsaved changes. Save before testing the connection.
+            </p>
+          )}
 
           {testResult && (
             <div className={`alert-box ${testResult.success ? 'success' : 'error'}`} style={{ marginTop: '12px' }}>
