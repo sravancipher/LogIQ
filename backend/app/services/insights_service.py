@@ -33,22 +33,61 @@ class LlmRuntimeConfig:
     api_key: str | None
     temperature: float
     timeout_seconds: int
+    max_tokens: int
+    api_version: str | None = None
+
+
+# Public default endpoint for providers that have one; providers requiring an
+# account-specific endpoint (azure_openai, bedrock) have no safe universal default -
+# base_url must come from the project override or system-wide settings in that case.
+_PUBLIC_DEFAULT_BASE_URLS: dict[str, str] = {
+    "anthropic": "https://api.anthropic.com",
+}
 
 
 def resolve_llm_config(db: Session, project_id: uuid.UUID) -> LlmRuntimeConfig:
     """Merge a project's optional LLM override (llm_settings) with the system-wide defaults.
 
     Any field left unset (None) on the project's row falls back to app.core.config.settings,
-    so a project with no override behaves exactly as before this feature existed.
+    so a project with no override behaves exactly as before this feature existed. The
+    system-wide settings.llm_* fields only apply as a fallback when they're actually
+    configured for the SAME provider the project resolved to - otherwise (e.g. the system
+    default is Ollama but this project picked Anthropic) there's nothing sensible to
+    inherit, so we fall back to a public default endpoint where one exists, or blank.
     """
     row = db.scalar(select(LlmSettings).where(LlmSettings.project_id == project_id))
 
     enabled = settings.llm_enabled if row is None or row.enabled is None else row.enabled
     provider = (row.provider if row and row.provider else settings.llm_provider).strip().lower()
-    base_url = (row.base_url if row and row.base_url else settings.resolved_llm_base_url).rstrip("/")
-    model = row.model if row and row.model else settings.resolved_llm_model
-    api_key = (row.api_key if row and row.api_key else settings.resolved_llm_api_key)
+    system_default_provider = settings.llm_provider.strip().lower()
+    system_matches_provider = provider == system_default_provider
+
+    if row and row.base_url:
+        base_url = row.base_url
+    elif provider == "ollama":
+        base_url = settings.resolved_llm_base_url
+    elif system_matches_provider and settings.resolved_llm_base_url:
+        base_url = settings.resolved_llm_base_url
+    else:
+        base_url = _PUBLIC_DEFAULT_BASE_URLS.get(provider, "")
+    base_url = base_url.rstrip("/")
+
+    if row and row.model:
+        model = row.model
+    elif provider == "ollama" or system_matches_provider:
+        model = settings.resolved_llm_model
+    else:
+        model = ""
+
+    if row and row.api_key:
+        api_key = row.api_key
+    elif system_matches_provider:
+        api_key = settings.resolved_llm_api_key
+    else:
+        api_key = None
+
     temperature = settings.resolved_llm_temperature if not row or row.temperature is None else row.temperature
+    api_version = row.api_version if row and row.api_version else None
 
     return LlmRuntimeConfig(
         enabled=enabled,
@@ -58,6 +97,8 @@ def resolve_llm_config(db: Session, project_id: uuid.UUID) -> LlmRuntimeConfig:
         api_key=api_key,
         temperature=temperature,
         timeout_seconds=settings.resolved_llm_timeout_seconds,
+        max_tokens=settings.llm_max_tokens,
+        api_version=api_version,
     )
 
 
@@ -440,6 +481,11 @@ def _merge_partial_llm_response(
     )
 
 
+_OPENAI_STYLE_PROVIDERS = {"openai", "openai_compatible", "openai-compatible", "akash"}
+_AZURE_PROVIDERS = {"azure_openai", "azure-openai", "azure"}
+_ANTHROPIC_STYLE_PROVIDERS = {"anthropic", "bedrock", "aws_bedrock", "aws-bedrock"}
+
+
 def _request_llm_completion(
     provider: str,
     prompt: str,
@@ -447,8 +493,14 @@ def _request_llm_completion(
     deep_analysis: bool,
     llm_config: LlmRuntimeConfig,
 ) -> Response:
-    if provider in {"openai", "openai_compatible", "openai-compatible", "akash"}:
+    if provider in _OPENAI_STYLE_PROVIDERS:
         return _request_openai_compatible(prompt=prompt, model_name=model_name, llm_config=llm_config)
+
+    if provider in _AZURE_PROVIDERS:
+        return _request_azure_openai(prompt=prompt, model_name=model_name, llm_config=llm_config)
+
+    if provider in _ANTHROPIC_STYLE_PROVIDERS:
+        return _request_anthropic_style(prompt=prompt, model_name=model_name, llm_config=llm_config)
 
     return _request_ollama(prompt=prompt, model_name=model_name, deep_analysis=deep_analysis, llm_config=llm_config)
 
@@ -493,11 +545,66 @@ def _request_openai_compatible(prompt: str, model_name: str, llm_config: LlmRunt
     )
 
 
+def _request_azure_openai(prompt: str, model_name: str, llm_config: LlmRuntimeConfig) -> Response:
+    # Azure OpenAI Service: the "model" is a deployment name baked into the URL path,
+    # not a request-body field; auth uses "api-key", not "Authorization: Bearer".
+    headers: dict[str, str] = {"Content-Type": "application/json", "api-key": llm_config.api_key or ""}
+    api_version = llm_config.api_version or "2024-06-01"
+    url = f"{llm_config.base_url}/openai/deployments/{model_name}/chat/completions?api-version={api_version}"
+
+    return requests.post(
+        url,
+        headers=headers,
+        json={
+            "messages": [
+                {
+                    "role": "user",
+                    "content": prompt,
+                }
+            ],
+            "temperature": llm_config.temperature,
+            "response_format": {"type": "json_object"},
+        },
+        timeout=llm_config.timeout_seconds,
+    )
+
+
+def _request_anthropic_style(prompt: str, model_name: str, llm_config: LlmRuntimeConfig) -> Response:
+    # Shared by direct Anthropic (base_url=https://api.anthropic.com) and Amazon Bedrock's
+    # Anthropic-native route (base_url=https://bedrock-runtime.<region>.amazonaws.com/anthropic,
+    # api_key=an Amazon Bedrock API key) - both use the identical Messages API request/response
+    # shape and the same x-api-key/anthropic-version headers, so one function covers both.
+    headers = {
+        "Content-Type": "application/json",
+        "x-api-key": llm_config.api_key or "",
+        "anthropic-version": "2023-06-01",
+    }
+    return requests.post(
+        f"{llm_config.base_url}/v1/messages",
+        headers=headers,
+        json={
+            "model": model_name,
+            "max_tokens": llm_config.max_tokens,
+            "temperature": llm_config.temperature,
+            "messages": [
+                {
+                    "role": "user",
+                    "content": prompt,
+                }
+            ],
+        },
+        timeout=llm_config.timeout_seconds,
+    )
+
+
 def _extract_llm_content(response: Response, provider: str) -> str:
     payload = response.json()
 
-    if provider in {"openai", "openai_compatible", "openai-compatible", "akash"}:
+    if provider in _OPENAI_STYLE_PROVIDERS or provider in _AZURE_PROVIDERS:
         return str(payload["choices"][0]["message"]["content"])
+
+    if provider in _ANTHROPIC_STYLE_PROVIDERS:
+        return str(payload["content"][0]["text"])
 
     return str(payload.get("response", ""))
 

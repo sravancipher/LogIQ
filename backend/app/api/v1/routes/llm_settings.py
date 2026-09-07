@@ -37,6 +37,7 @@ def _build_response(db: Session, project_id: uuid.UUID, has_override: bool) -> L
         model=config.model,
         api_key_configured=bool(config.api_key),
         temperature=config.temperature,
+        api_version=config.api_version,
     )
 
 
@@ -67,6 +68,7 @@ def upsert_llm_settings(
     if "api_key" in payload.model_fields_set:
         row.api_key = payload.api_key or None
     row.temperature = payload.temperature
+    row.api_version = payload.api_version or None
 
     db.commit()
     return _build_response(db, auth.project_id, has_override=True)

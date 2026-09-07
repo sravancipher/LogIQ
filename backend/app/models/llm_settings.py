@@ -29,6 +29,8 @@ class LlmSettings(Base):
     # Unlike webhook_token, this is never re-serialized in a response after being set.
     api_key: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     temperature: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    # Only meaningful for provider="azure_openai" (e.g. "2024-06-01"); ignored otherwise.
+    api_version: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(

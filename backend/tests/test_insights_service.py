@@ -4,7 +4,15 @@ from datetime import datetime, timedelta, timezone
 from app.core.config import settings
 from app.models.log import Log
 from app.schemas.insight import InsightsResponse
-from app.services.insights_service import _build_timeline, _merge_partial_llm_response, resolve_llm_config
+from app.services import insights_service
+from app.services.insights_service import (
+    _extract_llm_content,
+    _request_anthropic_style,
+    _request_azure_openai,
+    _build_timeline,
+    _merge_partial_llm_response,
+    resolve_llm_config,
+)
 
 
 class _FakeScalarDb:
@@ -24,6 +32,7 @@ def _make_llm_settings_row(**overrides):
         model=None,
         api_key=None,
         temperature=None,
+        api_version=None,
     )
     defaults.update(overrides)
     return type("LlmSettingsRow", (), defaults)()
@@ -51,6 +60,113 @@ def test_resolve_llm_config_merges_partial_override_with_system_defaults():
     assert config.provider == settings.llm_provider
     assert config.base_url == settings.resolved_llm_base_url
     assert config.temperature == settings.resolved_llm_temperature
+
+
+def test_resolve_llm_config_anthropic_falls_back_to_public_default_base_url():
+    # System default provider is "ollama" (per config.py), so an Anthropic override with
+    # no base_url must NOT inherit Ollama's URL - it should use Anthropic's public endpoint.
+    row = _make_llm_settings_row(enabled=True, provider="anthropic", api_key="sk-ant-...")
+    config = resolve_llm_config(_FakeScalarDb(row=row), uuid.uuid4())
+
+    assert config.provider == "anthropic"
+    assert config.base_url == "https://api.anthropic.com"
+
+
+def test_resolve_llm_config_azure_has_no_unsafe_default_base_url():
+    # Azure has no universal default endpoint (it's account-specific) - if the project
+    # didn't set one, base_url must come back blank rather than something misleading.
+    row = _make_llm_settings_row(enabled=True, provider="azure_openai")
+    config = resolve_llm_config(_FakeScalarDb(row=row), uuid.uuid4())
+
+    assert config.provider == "azure_openai"
+    assert config.base_url == ""
+
+
+def test_request_azure_openai_uses_deployment_url_and_api_key_header(monkeypatch):
+    captured = {}
+
+    class _Resp:
+        status_code = 200
+
+    def fake_post(url, headers, json, timeout):
+        captured["url"] = url
+        captured["headers"] = headers
+        captured["json"] = json
+        return _Resp()
+
+    monkeypatch.setattr(insights_service.requests, "post", fake_post)
+
+    config = insights_service.LlmRuntimeConfig(
+        enabled=True,
+        provider="azure_openai",
+        base_url="https://myresource.openai.azure.com",
+        model="my-deployment",
+        api_key="azure-key",
+        temperature=0.2,
+        timeout_seconds=20,
+        max_tokens=2048,
+        api_version="2024-06-01",
+    )
+
+    _request_azure_openai("prompt text", "my-deployment", config)
+
+    assert "/openai/deployments/my-deployment/chat/completions" in captured["url"]
+    assert "api-version=2024-06-01" in captured["url"]
+    assert captured["headers"]["api-key"] == "azure-key"
+    assert "Authorization" not in captured["headers"]
+    assert "model" not in captured["json"]
+
+
+def test_request_anthropic_style_sends_expected_headers_and_body(monkeypatch):
+    captured = {}
+
+    class _Resp:
+        status_code = 200
+
+    def fake_post(url, headers, json, timeout):
+        captured["url"] = url
+        captured["headers"] = headers
+        captured["json"] = json
+        return _Resp()
+
+    monkeypatch.setattr(insights_service.requests, "post", fake_post)
+
+    config = insights_service.LlmRuntimeConfig(
+        enabled=True,
+        provider="anthropic",
+        base_url="https://api.anthropic.com",
+        model="claude-3-5-sonnet-20241022",
+        api_key="sk-ant-...",
+        temperature=0.2,
+        timeout_seconds=20,
+        max_tokens=2048,
+        api_version=None,
+    )
+
+    _request_anthropic_style("prompt text", "claude-3-5-sonnet-20241022", config)
+
+    assert captured["url"] == "https://api.anthropic.com/v1/messages"
+    assert captured["headers"]["x-api-key"] == "sk-ant-..."
+    assert captured["headers"]["anthropic-version"] == "2023-06-01"
+    assert captured["json"]["max_tokens"] == 2048
+    assert captured["json"]["model"] == "claude-3-5-sonnet-20241022"
+
+
+def test_extract_llm_content_handles_anthropic_and_bedrock_shape():
+    class _Resp:
+        def json(self):
+            return {"content": [{"type": "text", "text": "hello from claude"}]}
+
+    assert _extract_llm_content(_Resp(), "anthropic") == "hello from claude"
+    assert _extract_llm_content(_Resp(), "bedrock") == "hello from claude"
+
+
+def test_extract_llm_content_handles_azure_openai_shape():
+    class _Resp:
+        def json(self):
+            return {"choices": [{"message": {"content": "hello from azure"}}]}
+
+    assert _extract_llm_content(_Resp(), "azure_openai") == "hello from azure"
 
 
 def _make_log(seconds_ago: int) -> Log:

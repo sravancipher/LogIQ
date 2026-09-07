@@ -2,12 +2,70 @@ import React, { useState, useEffect, useCallback, useContext } from 'react';
 import { AppContext } from '../App.jsx';
 import { apiFetch } from '../utils/api.js';
 
+const PROVIDER_INFO = {
+  ollama: {
+    label: 'Ollama (self-hosted)',
+    baseUrlPlaceholder: 'http://localhost:11434',
+    modelLabel: 'Model',
+    modelPlaceholder: 'qwen3:4b-q4_K_M',
+    apiKeyHint: 'Not needed for a local Ollama server.',
+    showApiVersion: false,
+  },
+  openai_compatible: {
+    label: 'OpenAI-compatible (OpenAI, self-hosted, etc.)',
+    baseUrlPlaceholder: 'https://api.openai.com/v1',
+    modelLabel: 'Model',
+    modelPlaceholder: 'gpt-4o-mini',
+    apiKeyHint: 'Your OpenAI (or compatible provider) API key.',
+    showApiVersion: false,
+  },
+  azure_openai: {
+    label: 'Azure OpenAI',
+    baseUrlPlaceholder: 'https://<resource-name>.openai.azure.com',
+    modelLabel: 'Deployment Name',
+    modelPlaceholder: 'my-gpt4o-deployment',
+    apiKeyHint: 'The API key from your Azure OpenAI resource (Keys and Endpoint page).',
+    showApiVersion: true,
+  },
+  anthropic: {
+    label: 'Anthropic (Claude)',
+    baseUrlPlaceholder: 'https://api.anthropic.com',
+    modelLabel: 'Model',
+    modelPlaceholder: 'claude-3-5-sonnet-20241022',
+    apiKeyHint: 'Your Anthropic API key (console.anthropic.com).',
+    showApiVersion: false,
+  },
+  bedrock: {
+    label: 'AWS Bedrock (Claude via Bedrock)',
+    baseUrlPlaceholder: 'https://bedrock-runtime.us-east-1.amazonaws.com/anthropic',
+    modelLabel: 'Model ID',
+    modelPlaceholder: 'us.anthropic.claude-sonnet-5',
+    apiKeyHint: 'An Amazon Bedrock API key (AWS console -> Bedrock -> API keys) - not your AWS secret access key.',
+    showApiVersion: false,
+  },
+};
+
+const PROVIDER_ALIASES = {
+  openai: 'openai_compatible',
+  'openai-compatible': 'openai_compatible',
+  akash: 'openai_compatible',
+  azure: 'azure_openai',
+  'azure-openai': 'azure_openai',
+  aws_bedrock: 'bedrock',
+  'aws-bedrock': 'bedrock',
+};
+
+function normalizeProvider(provider) {
+  return PROVIDER_ALIASES[provider] || provider || 'ollama';
+}
+
 const DEFAULT_FORM = {
   enabled: false,
   provider: 'ollama',
   base_url: '',
   model: '',
   temperature: 0.1,
+  api_version: '',
 };
 
 export default function LlmSettings() {
@@ -20,6 +78,8 @@ export default function LlmSettings() {
   const [testResult, setTestResult] = useState(null);
   const [busy, setBusy] = useState(false);
 
+  const info = PROVIDER_INFO[form.provider] || PROVIDER_INFO.ollama;
+
   const showAlert = (msg, type = 'info') => setAlert({ show: true, msg, type });
   const hideAlert = () => setAlert({ show: false, msg: '', type: '' });
 
@@ -30,12 +90,11 @@ export default function LlmSettings() {
       setEffective(r.body);
       setForm({
         enabled: r.body.enabled,
-        provider: r.body.provider === 'openai' || r.body.provider === 'openai-compatible' || r.body.provider === 'akash'
-          ? 'openai_compatible'
-          : (r.body.provider || 'ollama'),
+        provider: normalizeProvider(r.body.provider),
         base_url: r.body.base_url || '',
         model: r.body.model || '',
         temperature: r.body.temperature ?? 0.1,
+        api_version: r.body.api_version || '',
       });
     }
   }, [apiKey]);
@@ -55,6 +114,7 @@ export default function LlmSettings() {
       base_url: form.base_url.trim() || null,
       model: form.model.trim() || null,
       temperature: form.temperature === '' ? null : Number(form.temperature),
+      api_version: form.api_version.trim() || null,
     };
     if (clearApiKey) {
       body.api_key = '';
@@ -120,8 +180,9 @@ export default function LlmSettings() {
           <div className="form-row">
             <label>Provider</label>
             <select value={form.provider} onChange={e => setForm({ ...form, provider: e.target.value })}>
-              <option value="ollama">Ollama (self-hosted)</option>
-              <option value="openai_compatible">OpenAI-compatible (hosted / cloud)</option>
+              {Object.entries(PROVIDER_INFO).map(([value, meta]) => (
+                <option key={value} value={value}>{meta.label}</option>
+              ))}
             </select>
           </div>
 
@@ -129,18 +190,32 @@ export default function LlmSettings() {
             <label>Base URL</label>
             <input
               type="text"
-              placeholder="e.g. http://localhost:11434 or https://api.your-provider.com/v1"
+              placeholder={info.baseUrlPlaceholder}
               value={form.base_url}
               onChange={e => setForm({ ...form, base_url: e.target.value })}
             />
-            <p className="form-hint">Leave blank to use the system default endpoint.</p>
+            <p className="form-hint">Leave blank to use the system default endpoint (only meaningful if the system default is also this same provider).</p>
           </div>
 
+          {info.showApiVersion && (
+            <div className="form-row">
+              <label>API Version</label>
+              <input
+                type="text"
+                placeholder="2024-06-01"
+                value={form.api_version}
+                onChange={e => setForm({ ...form, api_version: e.target.value })}
+                style={{ width: '160px' }}
+              />
+              <p className="form-hint">The Azure OpenAI REST API version for your deployment.</p>
+            </div>
+          )}
+
           <div className="form-row">
-            <label>Model</label>
+            <label>{info.modelLabel}</label>
             <input
               type="text"
-              placeholder="e.g. qwen3:4b-q4_K_M or gpt-4o-mini"
+              placeholder={info.modelPlaceholder}
               value={form.model}
               onChange={e => setForm({ ...form, model: e.target.value })}
             />
@@ -152,12 +227,13 @@ export default function LlmSettings() {
             )}</label>
             <input
               type="password"
-              placeholder={effective?.api_key_configured ? 'Leave blank to keep the stored key' : 'Only needed for hosted/cloud providers'}
+              placeholder={effective?.api_key_configured ? 'Leave blank to keep the stored key' : info.apiKeyHint}
               value={apiKeyInput}
               disabled={clearApiKey}
               autoComplete="off"
               onChange={e => setApiKeyInput(e.target.value)}
             />
+            <p className="form-hint">{info.apiKeyHint}</p>
             {effective?.api_key_configured && (
               <label style={{ display: 'block', marginTop: '6px', fontSize: '12px' }}>
                 <input
@@ -182,6 +258,7 @@ export default function LlmSettings() {
               onChange={e => setForm({ ...form, temperature: e.target.value })}
               style={{ width: '100px' }}
             />
+            <p className="form-hint">Anthropic/Bedrock models expect 0-1; OpenAI-family models allow up to 2.</p>
           </div>
 
           <div className="gap-8">
@@ -206,9 +283,10 @@ export default function LlmSettings() {
               <tbody>
                 <tr><td>Source</td><td>{effective.has_override ? 'Project override' : 'System default'}</td></tr>
                 <tr><td>Enabled</td><td>{effective.enabled ? 'Yes' : 'No'}</td></tr>
-                <tr><td>Provider</td><td>{effective.provider}</td></tr>
-                <tr><td>Base URL</td><td className="mono" style={{ fontSize: '12px' }}>{effective.base_url}</td></tr>
-                <tr><td>Model</td><td>{effective.model}</td></tr>
+                <tr><td>Provider</td><td>{(PROVIDER_INFO[normalizeProvider(effective.provider)] || {}).label || effective.provider}</td></tr>
+                <tr><td>Base URL</td><td className="mono" style={{ fontSize: '12px' }}>{effective.base_url || '(none)'}</td></tr>
+                <tr><td>{(PROVIDER_INFO[normalizeProvider(effective.provider)] || {}).modelLabel || 'Model'}</td><td>{effective.model || '(none)'}</td></tr>
+                {effective.api_version && <tr><td>API Version</td><td>{effective.api_version}</td></tr>}
                 <tr><td>API Key</td><td>{effective.api_key_configured ? 'Configured' : 'Not set'}</td></tr>
                 <tr><td>Temperature</td><td>{effective.temperature}</td></tr>
               </tbody>

@@ -33,6 +33,10 @@ class Settings(BaseSettings):
     llm_max_logs: int = 25
     llm_max_chars_per_log: int = 400
     llm_temperature: float = 0.1
+    # Anthropic/Bedrock (Messages API) require max_tokens in every request, unlike
+    # OpenAI-compatible/Ollama where it's optional - not exposed per-project, just a
+    # generous system-wide ceiling for our JSON-report use case.
+    llm_max_tokens: int = 2048
 
     ollama_base_url: str = "http://localhost:11434"
     ollama_model: str = "qwen3:4b-q4_K_M"
