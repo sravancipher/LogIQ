@@ -8,6 +8,13 @@ export function formatGroupLabel(group) {
   return `${group.service_name || 'unknown-service'} / ${group.error_type || 'UnhandledError'} / ${group.operation || 'unknown-operation'}`;
 }
 
+export function formatLookback(minutes) {
+  if (!minutes) return '';
+  if (minutes % 1440 === 0) return `${minutes / 1440}d`;
+  if (minutes % 60 === 0) return `${minutes / 60}h`;
+  return `${minutes}m`;
+}
+
 export function badgeLevelClass(level = '') {
   const map = { ERROR: 'badge-error', WARN: 'badge-warn', INFO: 'badge-info', DEBUG: 'badge-debug' };
   return map[level.toUpperCase()] || 'badge-info';

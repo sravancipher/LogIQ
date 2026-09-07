@@ -3,6 +3,7 @@ from app.models.api_key import ApiKey
 from app.models.cloud_integration import CloudIntegration
 from app.models.ingest_request import IngestRequest
 from app.models.insight_feedback import InsightFeedback
+from app.models.latest_insight import LatestInsight
 from app.models.llm_settings import LlmSettings
 from app.models.log import Log
 from app.models.project import Project
@@ -15,6 +16,7 @@ __all__ = [
     "CloudIntegration",
     "IngestRequest",
     "InsightFeedback",
+    "LatestInsight",
     "LlmSettings",
     "Log",
     "Project",

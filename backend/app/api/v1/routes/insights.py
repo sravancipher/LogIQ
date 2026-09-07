@@ -4,8 +4,8 @@ from sqlalchemy.orm import Session
 from app.core.security import AuthContext, require_api_key
 from app.db.session import get_db
 from app.models.insight_feedback import InsightFeedback
-from app.schemas.insight import InsightFeedbackCreate, InsightFeedbackResponse, InsightsResponse
-from app.services.insights_service import build_insights
+from app.schemas.insight import InsightFeedbackCreate, InsightFeedbackResponse, InsightsResponse, LatestInsightResponse
+from app.services.insights_service import build_insights, get_latest_insight
 
 router = APIRouter(prefix="/insights", tags=["insights"])
 
@@ -25,6 +25,19 @@ def get_insights(
         deep_analysis=deep_analysis,
         levels=levels,
     )
+
+
+@router.get("/latest", response_model=LatestInsightResponse)
+def get_latest_insight_route(
+    auth: AuthContext = Depends(require_api_key),
+    db: Session = Depends(get_db),
+) -> LatestInsightResponse:
+    """Return the last analysis actually computed for this project (via GET /insights),
+    without recomputing anything - no LLM call, no fresh query. Used by the Overview
+    page and by the AI Insights page on load, so both always agree on "the last
+    analysis" instead of each silently running its own.
+    """
+    return get_latest_insight(db, auth.project_id)
 
 
 @router.post("/feedback", response_model=InsightFeedbackResponse, status_code=status.HTTP_201_CREATED)

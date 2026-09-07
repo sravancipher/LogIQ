@@ -52,6 +52,12 @@ class InsightsResponse(BaseModel):
     levels_filter: list[str] | None = Field(
         default=None, description="Log levels this analysis was scoped to, or null for all levels."
     )
+    computed_at: str | None = Field(default=None, description="UTC ISO timestamp this analysis was computed at.")
+
+
+class LatestInsightResponse(BaseModel):
+    has_analysis: bool = Field(..., description="Whether this project has ever had an analysis computed.")
+    insight: InsightsResponse | None = None
 
 
 class InsightFeedbackCreate(BaseModel):

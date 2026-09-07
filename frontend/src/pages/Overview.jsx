@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useContext } from 'react';
 import { AppContext } from '../App.jsx';
 import { apiFetch } from '../utils/api.js';
-import { tsShort, formatGroupLabel, badgeLevelClass } from '../utils/helpers.js';
+import { tsShort, formatGroupLabel, badgeLevelClass, formatLookback } from '../utils/helpers.js';
 
 function BadgeLevel({ level = '' }) {
   return <span className={`badge ${badgeLevelClass(level)}`}>{level}</span>;
@@ -76,6 +76,7 @@ function ContribGroupTags({ groups }) {
 export default function Overview() {
   const { apiKey, navigateTo } = useContext(AppContext);
   const [data, setData] = useState(null);
+  const [hasAnalysis, setHasAnalysis] = useState(true); // assume true until we know otherwise, to avoid an empty-state flash
   const [recentErrors, setRecentErrors] = useState([]);
   const [alert, setAlert] = useState({ show: true, msg: 'Enter your API key in the sidebar to load live data.', type: 'info' });
 
@@ -85,12 +86,16 @@ export default function Overview() {
       return;
     }
     setAlert({ show: false, msg: '', type: '' });
-    const r = await apiFetch('/api/v1/insights?lookback_minutes=60', {}, apiKey);
+    // Reads the last analysis actually run on the AI Insights page - it never triggers
+    // a fresh (possibly LLM-backed) computation of its own, so Overview and AI Insights
+    // always agree on what "the last analysis" is.
+    const r = await apiFetch('/api/v1/insights/latest', {}, apiKey);
     if (!r.ok) {
       setAlert({ show: true, msg: r.body.detail || 'Failed to load insights.', type: 'error' });
       return;
     }
-    setData(r.body);
+    setHasAnalysis(r.body.has_analysis);
+    setData(r.body.insight);
     const lr = await apiFetch('/api/v1/logs?level=ERROR&limit=5', {}, apiKey);
     if (lr.ok && lr.body.items) setRecentErrors(lr.body.items);
     else setRecentErrors([]);
@@ -101,6 +106,7 @@ export default function Overview() {
   }, [loadOverview]);
 
   const confPct = data?.confidence != null ? `Confidence: ${(data.confidence * 100).toFixed(0)}%` : '';
+  const windowLabel = formatLookback(data?.lookback_minutes);
 
   return (
     <div>
@@ -108,15 +114,35 @@ export default function Overview() {
       {alert.show && (
         <div className={`alert-box ${alert.type}`} style={{ marginBottom: '16px' }}>{alert.msg}</div>
       )}
+
+      {!alert.show && !hasAnalysis && (
+        <div className="card mb-16">
+          <div className="empty-state">
+            No AI analysis has been run for this project yet.
+            <div style={{ marginTop: '12px' }}>
+              <button className="btn btn-primary" onClick={() => navigateTo('page-insights')}>Run AI Analysis</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {hasAnalysis && data?.computed_at && (
+        <p className="form-hint" style={{ marginBottom: '12px' }}>
+          This is the last analysis run on the AI Insights page - last analyzed {tsShort(data.computed_at)}
+          {Array.isArray(data.levels_filter) && data.levels_filter.length > 0 ? ` \u00b7 Levels: ${data.levels_filter.join(', ')}` : ''}.
+          {' '}<span style={{ cursor: 'pointer', color: 'var(--cyan)' }} onClick={() => navigateTo('page-insights')}>Run a new analysis &rarr;</span>
+        </p>
+      )}
+
       <div className="grid4 mb-16">
         <div className="stat-card">
           <div className="stat-bar cyan"></div>
-          <div className="stat-lbl">Total Logs (1 h)</div>
+          <div className="stat-lbl">Total Logs{windowLabel ? ` (${windowLabel})` : ''}</div>
           <div className="stat-val cyan">{data?.total_logs ?? '\u2014'}</div>
         </div>
         <div className="stat-card">
           <div className="stat-bar red"></div>
-          <div className="stat-lbl">Errors (1 h)</div>
+          <div className="stat-lbl">Errors{windowLabel ? ` (${windowLabel})` : ''}</div>
           <div className="stat-val red">{data?.error_logs ?? '\u2014'}</div>
         </div>
         <div className="stat-card">
@@ -135,7 +161,7 @@ export default function Overview() {
         <div className="card">
           <div className="card-title">Root Cause Summary</div>
           <p style={{ fontSize: '14px', lineHeight: '1.75', color: 'var(--text-sub)' }}>
-            {data?.root_cause || 'Load insights to see AI root-cause analysis.'}
+            {data?.root_cause || 'Run AI Analysis to see root-cause analysis here.'}
           </p>
           {data?.suggestion && (
             <p style={{ marginTop: '10px', fontSize: '13px', color: 'var(--muted)' }}>{data.suggestion}</p>
@@ -164,7 +190,7 @@ export default function Overview() {
       </div>
 
       <div className="card mb-16">
-        <div className="card-title">Top Error Groups (Last 1 h)</div>
+        <div className="card-title">Top Error Groups{windowLabel ? ` (Last ${windowLabel})` : ''}</div>
         <div className="table-wrap">
           <ErrorGroupsTable groups={data?.error_groups || []} />
         </div>

@@ -1,4 +1,4 @@
-import React, { useState, useContext } from 'react';
+import React, { useState, useContext, useEffect } from 'react';
 import { AppContext } from '../App.jsx';
 import { apiFetch } from '../utils/api.js';
 import { tsShort, formatGroupLabel } from '../utils/helpers.js';
@@ -67,6 +67,23 @@ export default function AIInsights() {
   const toggleLevel = (level) => {
     setSelectedLevels(prev => prev.includes(level) ? prev.filter(l => l !== level) : [...prev, level]);
   };
+
+  // Restore the last analysis actually computed for this project (from the AI Insights
+  // or Overview page, or a prior visit here) so navigating away and back doesn't lose it.
+  useEffect(() => {
+    if (!apiKey) return;
+    let cancelled = false;
+    (async () => {
+      const r = await apiFetch('/api/v1/insights/latest', {}, apiKey);
+      if (cancelled || !r.ok || !r.body.has_analysis || !r.body.insight) return;
+      const insight = r.body.insight;
+      setResult(insight);
+      setLookback(String(insight.lookback_minutes));
+      setSelectedLevels(Array.isArray(insight.levels_filter) ? insight.levels_filter : []);
+      setEmptyMsg('');
+    })();
+    return () => { cancelled = true; };
+  }, [apiKey]);
 
   const loadInsights = async () => {
     if (!apiKey) return;
@@ -218,6 +235,7 @@ export default function AIInsights() {
             Scope: {Array.isArray(result.levels_filter) && result.levels_filter.length > 0
               ? result.levels_filter.join(', ')
               : 'All Levels'}
+            {result.computed_at && ` · Last analyzed ${tsShort(result.computed_at)}`}
           </p>
           <div className="grid4 mb-16">
             <div className="stat-card">

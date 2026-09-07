@@ -237,12 +237,68 @@ def test_build_insights_echoes_levels_filter(monkeypatch):
             max_tokens=2048,
         ),
     )
+    monkeypatch.setattr(insights_service, "_save_latest_insight", lambda db, project_id, insights: None)
 
     result = insights_service.build_insights(
         db=None, project_id=project_id, lookback_minutes=60, levels=["WARN", "ERROR"]
     )
 
     assert result.levels_filter == ["WARN", "ERROR"]
+
+
+class _FakeLatestInsightDb:
+    """Minimal fake supporting the scalar-select-then-add/commit pattern used by
+    _save_latest_insight, plus the added rows so a subsequent get_latest_insight-style
+    lookup can find them (mirrors how a real Session behaves within one request)."""
+
+    def __init__(self):
+        self.rows = []
+        self.committed = False
+
+    def scalar(self, *_args, **_kwargs):
+        return self.rows[0] if self.rows else None
+
+    def add(self, row):
+        self.rows.append(row)
+
+    def commit(self):
+        self.committed = True
+
+
+def test_save_and_get_latest_insight_round_trips():
+    project_id = uuid.uuid4()
+    db = _FakeLatestInsightDb()
+    fallback = _make_fallback()
+    fallback.levels_filter = ["ERROR"]
+
+    insights_service._save_latest_insight(db, project_id, fallback)
+
+    assert db.committed is True
+    assert fallback.computed_at is not None  # stamped by _save_latest_insight
+
+    result = insights_service.get_latest_insight(db, project_id)
+
+    assert result.has_analysis is True
+    assert result.insight.root_cause == fallback.root_cause
+    assert result.insight.levels_filter == ["ERROR"]
+    assert result.insight.computed_at == fallback.computed_at
+
+
+def test_save_latest_insight_overwrites_existing_row_not_duplicates():
+    project_id = uuid.uuid4()
+    db = _FakeLatestInsightDb()
+
+    insights_service._save_latest_insight(db, project_id, _make_fallback())
+    insights_service._save_latest_insight(db, project_id, _make_fallback())
+
+    assert len(db.rows) == 1
+
+
+def test_get_latest_insight_reports_no_analysis_when_none_saved():
+    result = insights_service.get_latest_insight(_FakeScalarDb(row=None), uuid.uuid4())
+
+    assert result.has_analysis is False
+    assert result.insight is None
 
 
 def test_build_timeline_returns_newest_logs_oldest_first():

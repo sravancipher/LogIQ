@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useContext } from 'react';
+import React, { useState, useCallback, useContext, useEffect } from 'react';
 import { AppContext } from '../App.jsx';
 import { apiFetch } from '../utils/api.js';
 import { tsShort, badgeLevelClass } from '../utils/helpers.js';
@@ -89,6 +89,18 @@ export default function LogExplorer() {
   const nextPage = () => doFetch(currentPage + 1, cursorStack);
   const prevPage = () => { if (currentPage > 0) doFetch(currentPage - 1, cursorStack); };
 
+  // Default view: last 1 hour, all levels - populated once when the API key is
+  // available, rather than requiring a manual "Search" click on every visit.
+  useEffect(() => {
+    if (!apiKey || initialized) return;
+    const d = new Date(Date.now() - 60 * 60 * 1000);
+    const pad = n => String(n).padStart(2, '0');
+    const defaultStart = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    setStartTime(defaultStart);
+    doFetch(0, [null], { startTime: defaultStart });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [apiKey]);
+
   return (
     <div>
       <div className="page-header"><h2>Log Explorer</h2></div>
@@ -121,11 +133,14 @@ export default function LogExplorer() {
             <button className="btn btn-ghost btn-sm" onClick={clear}>Clear</button>
           </div>
         </div>
+        <p className="form-hint" style={{ marginTop: '8px', marginBottom: 0 }}>
+          Showing the last 1 hour across all levels by default - adjust the filters above and click Search to change it.
+        </p>
       </div>
       <div className="card">
         <div className="table-wrap">
           {!initialized
-            ? <div className="empty-state">Enter your API key and click Search.</div>
+            ? <div className="empty-state">Enter your API key in the sidebar to load logs.</div>
             : <LogTable items={items} />
           }
         </div>

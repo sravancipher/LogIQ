@@ -13,6 +13,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.models.latest_insight import LatestInsight
 from app.models.llm_settings import LlmSettings
 from app.models.log import Log
 from app.schemas.insight import (
@@ -21,6 +22,7 @@ from app.schemas.insight import (
     InsightErrorGroupRef,
     InsightTimelineEvent,
     InsightsResponse,
+    LatestInsightResponse,
 )
 
 
@@ -145,6 +147,7 @@ def build_insights(
     if not llm_config.enabled:
         print("LLM analysis disabled, returning rule-based insights")
         fallback.fallback_reason = "LLM analysis disabled"
+        _save_latest_insight(db, project_id, fallback)
         return fallback
 
     llm_response = _generate_llm_analysis(
@@ -159,10 +162,38 @@ def build_insights(
     if llm_response is None:
         print("LLM analysis failed or returned invalid response, falling back to rule-based insights")
         fallback.fallback_reason = "LLM analysis unavailable or response invalid"
+        _save_latest_insight(db, project_id, fallback)
         return fallback
 
     llm_response.levels_filter = levels
+    _save_latest_insight(db, project_id, llm_response)
     return llm_response
+
+
+def _save_latest_insight(db: Session, project_id: uuid.UUID, insights: InsightsResponse) -> None:
+    """Persist this analysis as the project's "latest" snapshot, overwriting whatever
+    was there before, so the Overview page and a remounted AI Insights page can both
+    show the exact same last-computed analysis instead of silently recomputing their
+    own separate ones.
+    """
+    computed_at = datetime.now(timezone.utc)
+    insights.computed_at = computed_at.isoformat()
+
+    row = db.scalar(select(LatestInsight).where(LatestInsight.project_id == project_id))
+    if row is None:
+        row = LatestInsight(project_id=project_id)
+        db.add(row)
+    row.computed_at = computed_at
+    row.lookback_minutes = insights.lookback_minutes
+    row.response_json = insights.model_dump()
+    db.commit()
+
+
+def get_latest_insight(db: Session, project_id: uuid.UUID) -> LatestInsightResponse:
+    row = db.scalar(select(LatestInsight).where(LatestInsight.project_id == project_id))
+    if row is None:
+        return LatestInsightResponse(has_analysis=False, insight=None)
+    return LatestInsightResponse(has_analysis=True, insight=InsightsResponse(**row.response_json))
 
 
 def _collect_insight_inputs(
