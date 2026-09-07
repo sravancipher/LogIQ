@@ -10,7 +10,7 @@ from typing import Any, Optional
 
 import requests
 
-from monitor_sdk.context import get_correlation_id
+from logiq.context import get_correlation_id
 
 
 _LEVEL_PRIORITY: dict[str, int] = {
@@ -38,13 +38,14 @@ class _MonitorConfig:
 
 
 class Monitor:
-    """Client SDK for Project Monitor log ingestion.
+    """Client SDK for LogIQ log ingestion.
 
     Features:
     - non-blocking batching on background thread
     - retry with exponential backoff
     - request context propagation through correlation IDs
     - exception capture helpers
+    - min_level filter: events below the threshold are silently dropped
     """
 
     def __init__(
@@ -104,8 +105,24 @@ class Monitor:
         if self._flush_thread and self._flush_thread.is_alive():
             return
         self._stop_event.clear()
-        self._flush_thread = threading.Thread(target=self._flush_loop, name="monitor-sdk-flush", daemon=True)
+        self._flush_thread = threading.Thread(
+            target=self._flush_loop, name="logiq-flush", daemon=True
+        )
         self._flush_thread.start()
+
+    def start_heartbeat_loop(self, interval: float = 30.0) -> None:
+        """Send a periodic heartbeat every *interval* seconds so the service
+        stays visible in the Servers dashboard while it is running.
+        Stops automatically when the Monitor is closed.
+        """
+        def _loop() -> None:
+            while not self._stop_event.is_set():
+                self._stop_event.wait(interval)
+                if not self._stop_event.is_set():
+                    self.heartbeat()
+
+        t = threading.Thread(target=_loop, name="logiq-heartbeat", daemon=True)
+        t.start()
 
     def close(self) -> None:
         self._stop_event.set()

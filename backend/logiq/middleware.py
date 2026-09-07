@@ -4,7 +4,7 @@ import time
 import uuid
 from typing import Any, Callable
 
-from monitor_sdk.context import reset_correlation_id, set_correlation_id
+from logiq.context import reset_correlation_id, set_correlation_id
 
 
 class MonitorASGIMiddleware:

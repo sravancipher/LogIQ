@@ -3,9 +3,9 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "project-monitor-sdk"
-version = "1.0.0"
-description = "Official SDK for the Project Monitor AI Observability Platform"
+name = "logiq-sdk"
+version = "1.0.1"
+description = "Official Python SDK for the LogIQ AI Observability Platform"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }

@@ -10,7 +10,7 @@ Collect logs · Surface LLM root-cause analysis · Fire alerts · Track every ru
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?style=flat-square&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![React](https://img.shields.io/badge/React-18-61DAFB?style=flat-square&logo=react&logoColor=black)](https://react.dev/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-14%2B-4169E1?style=flat-square&logo=postgresql&logoColor=white)](https://www.postgresql.org/)
-[![SDK on PyPI](https://img.shields.io/pypi/v/project-monitor-sdk?style=flat-square&label=project-monitor-sdk&color=0073B7)](https://pypi.org/project/project-monitor-sdk/)
+[![SDK on PyPI](https://img.shields.io/pypi/v/logiq-sdk?style=flat-square&label=logiq-sdk&color=0073B7)](https://pypi.org/project/logiq-sdk/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow?style=flat-square)](LICENSE)
 
 </div>
@@ -25,7 +25,7 @@ Project Monitor is a self-hosted platform made up of three components that work 
 |-----------|------------|---------|
 | **Backend API** | FastAPI + PostgreSQL | Ingests logs, runs AI analysis, fires alerts |
 | **React Dashboard** | Vite + React 18 | Live metrics, log explorer, insights, servers view |
-| **Python SDK** | `project-monitor-sdk` (PyPI) | Instruments your services with one import |
+| **Python SDK** | `logiq-sdk` (PyPI, `import logiq`) | Instruments your services with one import |
 
 ---
 
@@ -45,7 +45,7 @@ Project Monitor is a self-hosted platform made up of three components that work 
 
 ```
 Your Services (Python)
-  └── project-monitor-sdk
+  └── logiq
         ├── heartbeat() / start_heartbeat_loop()
         └── log() / capture_exception() / trace()
               │
@@ -161,11 +161,11 @@ npm run build        # outputs to frontend/dist/
 ### 4 — SDK
 
 ```bash
-pip install project-monitor-sdk
+pip install logiq-sdk
 ```
 
 ```python
-from monitor_sdk import Monitor
+from logiq import Monitor
 
 monitor = Monitor(
     api_key="pm_your_api_key",
@@ -332,13 +332,13 @@ All routes are prefixed `/api/v1`. Authenticated routes require the header `X-AP
 ### Install
 
 ```bash
-pip install project-monitor-sdk
+pip install logiq-sdk
 ```
 
 ### Initialise
 
 ```python
-from monitor_sdk import Monitor
+from logiq import Monitor
 
 monitor = Monitor(
     api_key="pm_...",
@@ -397,7 +397,7 @@ This improves AI Insights and future distributed tracing.
 
 ```python
 from fastapi import FastAPI
-from monitor_sdk import MonitorASGIMiddleware
+from logiq import MonitorASGIMiddleware
 
 app = FastAPI()
 app.add_middleware(MonitorASGIMiddleware, monitor=monitor)
@@ -407,7 +407,7 @@ app.add_middleware(MonitorASGIMiddleware, monitor=monitor)
 ### Correlation ID context
 
 ```python
-from monitor_sdk.context import set_correlation_id, reset_correlation_id
+from logiq.context import set_correlation_id, reset_correlation_id
 
 token = set_correlation_id("req-abc-123")
 try:
@@ -644,11 +644,11 @@ Project Monitor/
 │   └── package.json
 │
 └── sdk/                         Publishable Python SDK
-    ├── src/monitor_sdk/
+    ├── src/logiq/
     │   ├── client.py            Monitor class — batching · retry · heartbeat
     │   ├── middleware.py        MonitorASGIMiddleware
     │   └── context.py           ContextVar correlation ID
-    └── pyproject.toml           project-monitor-sdk package metadata
+    └── pyproject.toml           logiq-sdk package metadata
 ```
 
 ---
@@ -849,14 +849,14 @@ Behavior:
 - Falls back to the rule-based insight engine if LLM is disabled, unreachable, or returns invalid JSON
 - Caps prompt size by limiting log count and message length
 
-## 7. Python SDK (`monitor_sdk`)
+## 7. Python SDK (`logiq`)
 
-The repository now includes a Python SDK package at `monitor_sdk` for app-side logging.
+The repository now includes a Python SDK package at `logiq` for app-side logging.
 
 ### Basic Usage
 
 ```python
-from monitor_sdk import Monitor
+from logiq import Monitor
 
 monitor = Monitor(
   api_key="pm_xxx",
@@ -888,7 +888,7 @@ monitor.close()
 ### Correlation Context
 
 ```python
-from monitor_sdk import set_correlation_id, reset_correlation_id
+from logiq import set_correlation_id, reset_correlation_id
 
 token = set_correlation_id("req-123")
 try:
@@ -901,7 +901,7 @@ finally:
 
 ```python
 from fastapi import FastAPI
-from monitor_sdk import Monitor, MonitorASGIMiddleware
+from logiq import Monitor, MonitorASGIMiddleware
 
 app = FastAPI()
 monitor = Monitor(api_key="pm_xxx", base_url="http://localhost:8000", service_name="api")
@@ -912,7 +912,7 @@ app.add_middleware(MonitorASGIMiddleware, monitor=monitor)
 
 ```python
 from flask import Flask
-from monitor_sdk import Monitor, attach_flask_middleware
+from logiq import Monitor, attach_flask_middleware
 
 app = Flask(__name__)
 monitor = Monitor(api_key="pm_xxx", base_url="http://localhost:8000", service_name="api")

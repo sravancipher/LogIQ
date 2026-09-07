@@ -10,7 +10,7 @@ from typing import Any, Optional
 
 import requests
 
-from monitor_sdk.context import get_correlation_id
+from logiq.context import get_correlation_id
 
 
 _LEVEL_PRIORITY: dict[str, int] = {
@@ -38,7 +38,7 @@ class _MonitorConfig:
 
 
 class Monitor:
-    """Client SDK for Project Monitor log ingestion.
+    """Client SDK for LogIQ log ingestion.
 
     Features:
     - non-blocking batching on background thread
@@ -106,7 +106,7 @@ class Monitor:
             return
         self._stop_event.clear()
         self._flush_thread = threading.Thread(
-            target=self._flush_loop, name="monitor-sdk-flush", daemon=True
+            target=self._flush_loop, name="logiq-flush", daemon=True
         )
         self._flush_thread.start()
 
@@ -121,7 +121,7 @@ class Monitor:
                 if not self._stop_event.is_set():
                     self.heartbeat()
 
-        t = threading.Thread(target=_loop, name="monitor-sdk-heartbeat", daemon=True)
+        t = threading.Thread(target=_loop, name="logiq-heartbeat", daemon=True)
         t.start()
 
     def close(self) -> None:

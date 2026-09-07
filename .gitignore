@@ -58,5 +58,5 @@ Company/
 sdk/dist/
 sdk/*.egg-info/
 sdk/src/*.egg-info/
-sdk/src/project_monitor_sdk.egg-info/
+sdk/src/logiq_sdk.egg-info/
 

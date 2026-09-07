@@ -1,6 +1,6 @@
 import asyncio
 
-from monitor_sdk import Monitor, MonitorASGIMiddleware, set_correlation_id, reset_correlation_id
+from logiq import Monitor, MonitorASGIMiddleware, set_correlation_id, reset_correlation_id
 
 
 class _Resp:

@@ -4,7 +4,7 @@ import time
 import uuid
 from typing import Any, Callable
 
-from monitor_sdk.context import reset_correlation_id, set_correlation_id
+from logiq.context import reset_correlation_id, set_correlation_id
 
 
 class MonitorASGIMiddleware:
@@ -23,7 +23,11 @@ class MonitorASGIMiddleware:
             k.decode("latin-1").lower(): v.decode("latin-1")
             for k, v in scope.get("headers", [])
         }
-        correlation_id = headers.get("x-request-id") or headers.get("x-correlation-id") or str(uuid.uuid4())
+        correlation_id = (
+            headers.get("x-request-id")
+            or headers.get("x-correlation-id")
+            or str(uuid.uuid4())
+        )
         token = set_correlation_id(correlation_id)
 
         method = scope.get("method", "UNKNOWN")
@@ -44,7 +48,11 @@ class MonitorASGIMiddleware:
                 level="INFO" if status_code < 500 else "ERROR",
                 operation="http_request",
                 status=str(status_code),
-                metadata={"method": method, "path": path, "duration_ms": int((time.perf_counter() - started) * 1000)},
+                metadata={
+                    "method": method,
+                    "path": path,
+                    "duration_ms": int((time.perf_counter() - started) * 1000),
+                },
                 correlation_id=correlation_id,
             )
         except Exception as exc:
@@ -60,20 +68,20 @@ class MonitorASGIMiddleware:
 
 
 def attach_flask_middleware(app: Any, monitor: Any) -> None:
-    """Attach request logging middleware to Flask app.
-
-    Flask is optional. Importing this function does not require Flask,
-    but calling it does.
-    """
+    """Attach request logging middleware to a Flask app."""
 
     try:
         from flask import g, request
-    except Exception as exc:  # pragma: no cover - only hit when Flask missing
+    except Exception as exc:
         raise RuntimeError("Flask is not installed. Install flask to use Flask middleware.") from exc
 
     @app.before_request
     def _before_request() -> None:
-        correlation_id = request.headers.get("X-Request-ID") or request.headers.get("X-Correlation-ID") or str(uuid.uuid4())
+        correlation_id = (
+            request.headers.get("X-Request-ID")
+            or request.headers.get("X-Correlation-ID")
+            or str(uuid.uuid4())
+        )
         g._monitor_started = time.perf_counter()
         g._monitor_token = set_correlation_id(correlation_id)
         g._monitor_correlation_id = correlation_id

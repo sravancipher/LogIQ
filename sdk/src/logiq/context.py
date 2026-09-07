@@ -3,7 +3,7 @@ from __future__ import annotations
 import contextvars
 
 _correlation_id_var: contextvars.ContextVar[str | None] = contextvars.ContextVar(
-    "monitor_sdk_correlation_id", default=None
+    "logiq_correlation_id", default=None
 )
 
 
