@@ -320,10 +320,16 @@ export default function AIInsights() {
                 Email is sent via SMTP to the address below.
               </p>
             </div>
-            {notifyChannels.includes('email') && (
+            {(notifyChannels.includes('email') || notifyChannels.includes('teams')) && (
               <div className="form-row">
-                <label>Recipient Email *</label>
+                <label>Recipient Email {notifyChannels.includes('email') ? '*' : '(optional)'}</label>
                 <input type="email" placeholder="e.g. owner@company.com" value={notifyEmail} onChange={e => setNotifyEmail(e.target.value)} />
+                {!notifyChannels.includes('email') && (
+                  <p className="form-hint">
+                    Not used for delivery here, but included as hidden metadata in the Teams card
+                    (id "target_email") so your Flow can read it for routing.
+                  </p>
+                )}
               </div>
             )}
             {notifyChannels.includes('teams') && (

@@ -116,6 +116,38 @@ def test_send_teams_alert_posts_a_valid_adaptive_card(monkeypatch):
     assert "$schema" in card
     assert any("Payment timeout" in block["text"] for block in card["body"])
     assert any("Errors spiking" in block["text"] for block in card["body"])
+    assert len(card["body"]) == 2  # no hidden target_email block when recipient_email is unset
+
+
+def test_send_teams_alert_includes_hidden_target_email_block_when_provided(monkeypatch):
+    captured = {}
+
+    class _Resp:
+        status_code = 200
+
+    def fake_post(url, json, timeout):
+        captured["json"] = json
+        return _Resp()
+
+    monkeypatch.setattr("app.services.alert_service.requests.post", fake_post)
+
+    payload = AlertTestRequest(
+        title="Payment timeout", message="Errors spiking", severity="HIGH", recipient_email="owner@example.com"
+    )
+    config = resolve_alert_config(_FakeScalarDb(row=None), uuid.uuid4())
+    config.teams_webhook_url = "https://example.webhook.office.com/webhookb2/test"
+
+    send_teams_alert(payload, config)
+
+    card = captured["json"]["attachments"][0]["content"]
+    assert len(card["body"]) == 3
+    target_block = card["body"][2]
+    assert target_block == {
+        "type": "TextBlock",
+        "id": "target_email",
+        "text": "owner@example.com",
+        "isVisible": False,
+    }
 
 
 def _make_insights(**overrides) -> InsightsResponse:

@@ -57,24 +57,38 @@ def send_teams_alert(payload: AlertTestRequest, config: AlertChannelConfig) -> b
     # "When a Teams webhook request is received" flow reads the card from a top-level
     # "attachments" array (a Bot Framework Activity shape) - a bare AdaptiveCard at the
     # request root leaves that array null and sends the flow down the wrong branch.
+    body_blocks: list[dict[str, Any]] = [
+        {
+            "type": "TextBlock",
+            "text": f"[{payload.severity}] {_escape_teams_text(payload.title)}",
+            "weight": "Bolder",
+            "size": "Medium",
+            "wrap": True,
+        },
+        {
+            "type": "TextBlock",
+            "text": _escape_teams_text(payload.message),
+            "wrap": True,
+        },
+    ]
+    if payload.recipient_email:
+        # Hidden (isVisible: false) so it never renders in the card, but still present in
+        # the JSON body for a Power Automate flow to read (e.g. content.body[2].text, or
+        # by id "target_email") and use for dynamic one-to-one routing/lookup.
+        body_blocks.append(
+            {
+                "type": "TextBlock",
+                "id": "target_email",
+                "text": _escape_teams_text(payload.recipient_email),
+                "isVisible": False,
+            }
+        )
+
     adaptive_card = {
         "type": "AdaptiveCard",
         "$schema": "http://adaptivecards.io/schemas/adaptivecard.json",
         "version": "1.4",
-        "body": [
-            {
-                "type": "TextBlock",
-                "text": f"[{payload.severity}] {_escape_teams_text(payload.title)}",
-                "weight": "Bolder",
-                "size": "Medium",
-                "wrap": True,
-            },
-            {
-                "type": "TextBlock",
-                "text": _escape_teams_text(payload.message),
-                "wrap": True,
-            },
-        ],
+        "body": body_blocks,
     }
     body = {
         "type": "message",
