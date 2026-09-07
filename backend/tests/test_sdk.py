@@ -1,6 +1,12 @@
 import asyncio
 
-from logiq import Monitor, MonitorASGIMiddleware, set_correlation_id, reset_correlation_id
+from logiq import (
+    Monitor,
+    MonitorASGIMiddleware,
+    get_correlation_headers,
+    reset_correlation_id,
+    set_correlation_id,
+)
 
 
 class _Resp:
@@ -81,6 +87,37 @@ def test_correlation_context_propagates_to_log_payload():
 
     sent = session.calls[0]["json"]["logs"][0]
     assert sent["correlation_id"] == "corr-123"
+
+
+def test_get_correlation_headers_empty_when_no_active_correlation():
+    assert get_correlation_headers() == {}
+
+
+def test_get_correlation_headers_propagates_active_correlation_id():
+    token = set_correlation_id("corr-xyz")
+    try:
+        assert get_correlation_headers() == {"X-Correlation-Id": "corr-xyz"}
+        assert get_correlation_headers("X-Request-Id") == {"X-Request-Id": "corr-xyz"}
+    finally:
+        reset_correlation_id(token)
+
+    assert get_correlation_headers() == {}
+
+
+def test_monitor_correlation_headers_delegates_to_active_context():
+    monitor = Monitor(
+        api_key="pm_test",
+        base_url="http://localhost:8000",
+        start_background=False,
+    )
+
+    assert monitor.correlation_headers() == {}
+
+    token = set_correlation_id("corr-downstream")
+    try:
+        assert monitor.correlation_headers() == {"X-Correlation-Id": "corr-downstream"}
+    finally:
+        reset_correlation_id(token)
 
 
 def test_capture_exception_includes_traceback_metadata():

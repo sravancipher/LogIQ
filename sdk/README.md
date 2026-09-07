@@ -149,6 +149,23 @@ finally:
 
 `log()`/`info()`/`warn()`/`error()`/`debug()`/`capture_exception()` all use `get_correlation_id()` as the fallback whenever you don't pass `correlation_id=` explicitly. The ASGI and Flask middleware (below) set this for you automatically for every request.
 
+### Propagating a correlation ID to another service
+
+The behavior above only covers one process: `contextvars` don't cross a network call. If your handler calls another service over HTTP and you want that service's logs linked to the same incident, attach the ID to the outbound request yourself with `get_correlation_headers()` (or `monitor.correlation_headers()`) — it returns `{}` when there's no active correlation ID, so it's always safe to merge into your headers:
+
+```python
+from logiq import get_correlation_headers
+import requests
+
+requests.post(
+    "http://payment-service/charge",
+    json=payload,
+    headers={"Content-Type": "application/json", **get_correlation_headers()},
+)
+```
+
+On the receiving side, `MonitorASGIMiddleware`/`attach_flask_middleware` reads the same `X-Correlation-Id` (or `X-Request-Id`) header, so that service continues the same correlation ID instead of minting a new one — this is what lets LogIQ's AI Insights link errors from both services into one incident (see "contributing error groups" in the dashboard).
+
 ## ASGI middleware (FastAPI / Starlette)
 
 ```python
@@ -250,6 +267,7 @@ def create_order(order: OrderIn):
 | `MonitorASGIMiddleware` | FastAPI/Starlette middleware — correlation IDs + one log event per request |
 | `attach_flask_middleware(app, monitor)` | Same, for Flask |
 | `set_correlation_id(id)` / `get_correlation_id()` / `reset_correlation_id(token)` | Manual correlation ID propagation via `contextvars` |
+| `get_correlation_headers(header_name="X-Correlation-Id")` / `monitor.correlation_headers(header_name=...)` | Header dict for an outbound HTTP call, so a downstream service continues the same correlation ID (`{}` if none is active) |
 
 ## License
 

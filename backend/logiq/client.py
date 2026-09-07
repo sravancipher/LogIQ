@@ -10,7 +10,7 @@ from typing import Any, Optional
 
 import requests
 
-from logiq.context import get_correlation_id
+from logiq.context import get_correlation_headers, get_correlation_id
 
 
 _LEVEL_PRIORITY: dict[str, int] = {
@@ -230,6 +230,13 @@ class Monitor:
 
     def trace(self, operation: str, *, metadata: dict[str, Any] | None = None):
         return _TraceContext(self, operation=operation, metadata=metadata)
+
+    def correlation_headers(self, header_name: str = "X-Correlation-Id") -> dict[str, str]:
+        """Header dict for an outbound HTTP call to another service, so its
+        middleware continues this same correlation ID instead of starting a new one.
+        Returns {} when no correlation ID is active for the current request/task.
+        """
+        return get_correlation_headers(header_name)
 
     def install_excepthook(self) -> None:
         import sys
