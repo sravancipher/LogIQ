@@ -27,6 +27,13 @@ class Log(Base):
     metadata_json: Mapped[Optional[dict[str, Any]]] = mapped_column(JSON, nullable=True)
 
     source: Mapped[str] = mapped_column(String(50), nullable=False, default="agent")
+    # Where in the caller's source this log/error actually came from: for
+    # capture_exception() this is the deepest frame of the exception's own traceback
+    # (where it was raised); for a plain log()/error() call with no exception object,
+    # the SDK falls back to the caller's own stack frame. Both optional - not every
+    # ingest path (e.g. cloud-webhook-normalized logs) can populate these.
+    source_file: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    source_line: Mapped[Optional[int]] = mapped_column(nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
 

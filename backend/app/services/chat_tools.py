@@ -60,6 +60,8 @@ def _log_to_dict(row: Log) -> dict[str, Any]:
         "message": redact_value(row.message[:MESSAGE_CHARS]),
         "error_type": row.error_type,
         "correlation_id": row.correlation_id,
+        "source_file": row.source_file,
+        "source_line": row.source_line,
     }
 
 

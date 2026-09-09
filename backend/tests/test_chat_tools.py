@@ -15,6 +15,8 @@ class _Row:
         self.status = kw.get("status", "error")
         self.error_type = kw.get("error_type", "TimeoutError")
         self.correlation_id = kw.get("correlation_id")
+        self.source_file = kw.get("source_file")
+        self.source_line = kw.get("source_line")
 
 
 class _ScalarsResult:
@@ -59,6 +61,28 @@ def test_search_logs_redacts_message_content():
     result = chat_tools.search_logs(db, uuid.uuid4(), chat_tools.SearchLogsArgs())
 
     assert "hunter2secret" not in result["logs"][0]["message"]
+
+
+def test_search_logs_includes_source_location_when_available():
+    now = datetime.now(timezone.utc)
+    db = _FakeDb(
+        scalars_queue=[[_Row(1, now, "JWT expired", source_file="/app/auth/tokens.py", source_line=42)]]
+    )
+
+    result = chat_tools.search_logs(db, uuid.uuid4(), chat_tools.SearchLogsArgs())
+
+    assert result["logs"][0]["source_file"] == "/app/auth/tokens.py"
+    assert result["logs"][0]["source_line"] == 42
+
+
+def test_search_logs_source_location_is_null_when_not_captured():
+    now = datetime.now(timezone.utc)
+    db = _FakeDb(scalars_queue=[[_Row(1, now, "some log")]])
+
+    result = chat_tools.search_logs(db, uuid.uuid4(), chat_tools.SearchLogsArgs())
+
+    assert result["logs"][0]["source_file"] is None
+    assert result["logs"][0]["source_line"] is None
 
 
 def test_get_log_context_reports_error_when_log_not_found():

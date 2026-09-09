@@ -29,6 +29,8 @@ class _Row:
         self.status = "error"
         self.error_type = "TokenExpiredError"
         self.correlation_id = None
+        self.source_file = "/app/auth/tokens.py"
+        self.source_line = 42
 
 
 class _ScalarsResult:

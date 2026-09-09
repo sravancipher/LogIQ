@@ -47,6 +47,8 @@ def ingest_logs(
             correlation_id=item.correlation_id,
             metadata_json=item.metadata,
             source=item.source,
+            source_file=item.source_file,
+            source_line=item.source_line,
         )
         for item in payload.logs
     ]
@@ -150,6 +152,8 @@ def get_logs(
             correlation_id=row.correlation_id,
             metadata=row.metadata_json,
             source=row.source,
+            source_file=row.source_file,
+            source_line=row.source_line,
             created_at=row.created_at,
         )
         for row in page_rows

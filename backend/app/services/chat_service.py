@@ -242,6 +242,8 @@ def _build_prompt(
         "- Only reference log_id values that actually appeared in a tool result above.\n"
         "- Prefer get_log_context after search_logs finds a relevant error, to see what happened "
         "immediately before/after it.\n"
+        "- If the question asks where an error came from / which file, cite that log's source_file "
+        "and source_line when the tool result includes them (they may be null if unavailable).\n"
     )
 
 

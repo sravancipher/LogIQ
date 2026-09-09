@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import atexit
+import os
+import sys
 import threading
 import time
 import traceback
@@ -11,6 +13,23 @@ from typing import Any, Optional
 import requests
 
 from logiq.context import get_correlation_headers, get_correlation_id
+
+_THIS_FILE = os.path.abspath(__file__)
+
+
+def _caller_location() -> tuple[str, int] | None:
+    """Best-effort (file, line) of the first stack frame outside this module - i.e.
+    the application code that actually called into the SDK. Used only as a fallback
+    for plain log()/info()/error() calls that have no exception object;
+    capture_exception() prefers the exception's own traceback instead, which points
+    at where the error was actually raised, not just where it was logged.
+    """
+    frame = sys._getframe(1)
+    while frame is not None and os.path.abspath(frame.f_code.co_filename) == _THIS_FILE:
+        frame = frame.f_back
+    if frame is None:
+        return None
+    return frame.f_code.co_filename, frame.f_lineno
 
 
 _LEVEL_PRIORITY: dict[str, int] = {
@@ -146,11 +165,18 @@ class Monitor:
         correlation_id: str | None = None,
         service_name: str | None = None,
         source: str | None = None,
+        source_file: str | None = None,
+        source_line: int | None = None,
     ) -> None:
         if not message:
             return
         if _LEVEL_PRIORITY.get(level.upper(), 1) < _LEVEL_PRIORITY[self._cfg.min_level]:
             return
+
+        if source_file is None and source_line is None:
+            located = _caller_location()
+            if located is not None:
+                source_file, source_line = located
 
         resolved_correlation = correlation_id or get_correlation_id()
         payload = {
@@ -163,6 +189,8 @@ class Monitor:
             "correlation_id": resolved_correlation,
             "metadata": metadata,
             "source": source or self._cfg.source,
+            "source_file": source_file,
+            "source_line": source_line,
         }
 
         with self._lock:
@@ -189,6 +217,8 @@ class Monitor:
             "error_type": None,
             "correlation_id": None,
             "metadata": None,
+            "source_file": None,
+            "source_line": None,
         }
         with self._lock:
             self._buffer.append(payload)
@@ -218,6 +248,12 @@ class Monitor:
         merged_metadata = dict(metadata or {})
         merged_metadata.setdefault("traceback", detail)
 
+        # The deepest frame of the traceback is where the exception was actually
+        # raised - a more precise answer to "where did this error come from" than
+        # wherever the caller happened to catch and log it.
+        frames = traceback.extract_tb(exc.__traceback__)
+        source_file, source_line = (frames[-1].filename, frames[-1].lineno) if frames else (None, None)
+
         self.log(
             message=str(exc) or exc_type,
             level="ERROR",
@@ -226,6 +262,8 @@ class Monitor:
             error_type=exc_type,
             metadata=merged_metadata,
             correlation_id=correlation_id,
+            source_file=source_file,
+            source_line=source_line,
         )
 
     def trace(self, operation: str, *, metadata: dict[str, Any] | None = None):

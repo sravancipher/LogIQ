@@ -13,6 +13,8 @@ class LogItemIn(BaseModel):
     correlation_id: str | None = Field(default=None, max_length=255)
     metadata: dict | None = None
     source: str = Field(default="agent", max_length=50)
+    source_file: str | None = Field(default=None, max_length=500)
+    source_line: int | None = None
 
 
 class LogIngestRequest(BaseModel):
@@ -34,6 +36,8 @@ class LogOut(BaseModel):
     correlation_id: str | None
     metadata: dict | None
     source: str
+    source_file: str | None = None
+    source_line: int | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}

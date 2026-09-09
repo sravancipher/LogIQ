@@ -58,6 +58,8 @@ def test_ingest_logs_accepts_batch(client, override_db):
                 "correlation_id": "corr-1",
                 "metadata": {"k": "v"},
                 "source": "sdk",
+                "source_file": "/app/payments/charge.py",
+                "source_line": 117,
             }
         ]
     }
@@ -68,6 +70,8 @@ def test_ingest_logs_accepts_batch(client, override_db):
     assert response.json()["accepted"] == 1
     assert len(db.saved) == 1
     assert db.committed is True
+    assert db.saved[0].source_file == "/app/payments/charge.py"
+    assert db.saved[0].source_line == 117
 
 
 def test_get_logs_returns_cursor_page(client, override_db):
@@ -86,6 +90,8 @@ def test_get_logs_returns_cursor_page(client, override_db):
             self.correlation_id = f"corr-{idx}"
             self.metadata_json = {"i": idx}
             self.source = "sdk"
+            self.source_file = "/app/worker.py"
+            self.source_line = 88
             self.created_at = created_at
 
     db.set_rows([
@@ -100,4 +106,6 @@ def test_get_logs_returns_cursor_page(client, override_db):
     body = response.json()
     assert len(body["items"]) == 1
     assert body["items"][0]["message"] == "m3"
+    assert body["items"][0]["source_file"] == "/app/worker.py"
+    assert body["items"][0]["source_line"] == 88
     assert body["next_cursor"] is not None

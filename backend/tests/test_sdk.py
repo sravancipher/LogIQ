@@ -1,4 +1,6 @@
 import asyncio
+import os
+import sys
 
 from logiq import (
     Monitor,
@@ -140,6 +142,71 @@ def test_capture_exception_includes_traceback_metadata():
     assert sent["level"] == "ERROR"
     assert sent["error_type"] == "ValueError"
     assert "traceback" in sent["metadata"]
+
+
+def test_capture_exception_reports_the_raise_site_not_the_catch_site():
+    session = _Session([202])
+    monitor = Monitor(
+        api_key="pm_test",
+        base_url="http://localhost:8000",
+        batch_size=1,
+        flush_interval=60,
+        session=session,
+        start_background=False,
+    )
+
+    def _raise():
+        raise ValueError("boom")  # keep this line directly under the def - asserted below
+
+    raise_line = _raise.__code__.co_firstlineno + 1
+
+    try:
+        _raise()
+    except ValueError as exc:
+        monitor.capture_exception(exc, operation="unit_test")
+
+    sent = session.calls[0]["json"]["logs"][0]
+    assert sent["source_file"] == os.path.abspath(__file__)
+    assert sent["source_line"] == raise_line
+
+
+def test_plain_log_call_falls_back_to_caller_file_and_line():
+    session = _Session([202])
+    monitor = Monitor(
+        api_key="pm_test",
+        base_url="http://localhost:8000",
+        batch_size=1,
+        flush_interval=60,
+        session=session,
+        start_background=False,
+        min_level="INFO",
+    )
+
+    call_line = sys._getframe().f_lineno + 1
+    monitor.info("hello")
+
+    sent = session.calls[0]["json"]["logs"][0]
+    assert sent["source_file"] == os.path.abspath(__file__)
+    assert sent["source_line"] == call_line
+
+
+def test_explicit_source_file_and_line_are_not_overridden():
+    session = _Session([202])
+    monitor = Monitor(
+        api_key="pm_test",
+        base_url="http://localhost:8000",
+        batch_size=1,
+        flush_interval=60,
+        session=session,
+        start_background=False,
+        min_level="INFO",
+    )
+
+    monitor.info("hello", source_file="custom/reported/path.py", source_line=7)
+
+    sent = session.calls[0]["json"]["logs"][0]
+    assert sent["source_file"] == "custom/reported/path.py"
+    assert sent["source_line"] == 7
 
 
 def test_asgi_middleware_sets_correlation_and_logs_request():
