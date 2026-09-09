@@ -9,6 +9,7 @@ import Integrations from './pages/Integrations.jsx';
 import Alerts from './pages/Alerts.jsx';
 import Servers from './pages/Servers.jsx';
 import LlmSettings from './pages/LlmSettings.jsx';
+import Chat from './pages/Chat.jsx';
 
 export const AppContext = createContext({
   apiKey: '',
@@ -25,6 +26,7 @@ const PAGE_TITLES = {
   'page-alerts':       'Alerts',
   'page-servers':      'Servers',
   'page-llm-settings': 'AI Configuration',
+  'page-chat':         'AI Assistant',
 };
 
 export default function App() {
@@ -49,6 +51,7 @@ export default function App() {
           {activePage === 'page-alerts'       && <Alerts />}
           {activePage === 'page-servers'      && <Servers />}
           {activePage === 'page-llm-settings' && <LlmSettings />}
+          {activePage === 'page-chat'         && <Chat />}
         </div>
       </div>
     </AppContext.Provider>

@@ -8,6 +8,7 @@ const NAV_ITEMS = [
   { id: 'page-servers',      icon: '\u25A3', label: 'Servers' },
   { id: 'page-logs',         icon: '\u2261', label: 'Log Explorer' },
   { id: 'page-insights',     icon: '\u2908', label: 'AI Insights' },
+  { id: 'page-chat',         icon: '\u25c8', label: 'AI Assistant' },
   { id: 'page-integrations', icon: '\u2B21', label: 'Integrations' },
   { id: 'page-alerts',       icon: '\u25CE', label: 'Alerts' },
   { id: 'page-llm-settings', icon: '\u2699', label: 'AI Configuration' },
