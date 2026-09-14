@@ -16,6 +16,7 @@ from app.core.config import settings
 from app.models.latest_insight import LatestInsight
 from app.models.llm_settings import LlmSettings
 from app.models.log import Log
+from app.services.redaction import redact_text
 from app.schemas.insight import (
     InsightDependentErrorGroup,
     InsightErrorGroup,
@@ -679,7 +680,7 @@ def _build_llm_prompt(
                 "operation": row.operation,
                 "level": row.level,
                 "status": row.status,
-                "message": row.message[: settings.resolved_llm_max_chars_per_log],
+                "message": redact_text(row.message[: settings.resolved_llm_max_chars_per_log]),
                 "error_type": row.error_type,
                 "correlation_id": row.correlation_id,
             }

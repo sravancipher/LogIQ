@@ -9,6 +9,7 @@ from app.services.insights_service import (
     _extract_llm_content,
     _request_anthropic_style,
     _request_azure_openai,
+    _build_llm_prompt,
     _build_timeline,
     _merge_partial_llm_response,
     resolve_llm_config,
@@ -299,6 +300,32 @@ def test_get_latest_insight_reports_no_analysis_when_none_saved():
 
     assert result.has_analysis is False
     assert result.insight is None
+
+
+def test_build_llm_prompt_redacts_secrets_in_log_messages():
+    project_id = uuid.uuid4()
+    log_with_secret = Log(
+        level="ERROR",
+        message="auth failed: Authorization: Bearer sk-live-abcdef1234567890 for user",
+        service_name="payment-service",
+        operation="charge",
+        error_type="AuthError",
+        created_at=datetime.now(timezone.utc),
+    )
+    metrics = {
+        "total_logs": 1,
+        "error_logs": 1,
+        "top_error_type": "AuthError",
+        "top_service": "payment-service",
+        "error_groups": [],
+        "target_error_group": None,
+        "contributing_error_groups": [],
+    }
+
+    prompt = _build_llm_prompt(project_id, 60, metrics, [log_with_secret])
+
+    assert "sk-live-abcdef1234567890" not in prompt
+    assert "[REDACTED]" in prompt or "[REDACTED_KEY]" in prompt
 
 
 def test_build_timeline_returns_newest_logs_oldest_first():
