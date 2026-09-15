@@ -673,6 +673,12 @@ def _build_llm_prompt(
 
     safe_logs = []
     for row in dominant_group_logs + remaining_logs:
+        traceback_text = None
+        if isinstance(row.metadata_json, dict):
+            raw_traceback = row.metadata_json.get("traceback")
+            if isinstance(raw_traceback, str) and raw_traceback:
+                traceback_text = redact_text(raw_traceback[: settings.llm_max_traceback_chars])
+
         safe_logs.append(
             {
                 "timestamp": row.created_at.isoformat(),
@@ -683,6 +689,12 @@ def _build_llm_prompt(
                 "message": redact_text(row.message[: settings.resolved_llm_max_chars_per_log]),
                 "error_type": row.error_type,
                 "correlation_id": row.correlation_id,
+                # Captured by the SDK's capture_exception() but previously never
+                # reached the LLM prompt, even though it was already stored - see
+                # source_file/source_line on the Log model and metadata["traceback"].
+                "source_file": row.source_file,
+                "source_line": row.source_line,
+                "traceback": traceback_text,
             }
         )
 

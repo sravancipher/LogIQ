@@ -328,6 +328,44 @@ def test_build_llm_prompt_redacts_secrets_in_log_messages():
     assert "[REDACTED]" in prompt or "[REDACTED_KEY]" in prompt
 
 
+def test_build_llm_prompt_includes_source_location_and_redacted_traceback():
+    project_id = uuid.uuid4()
+    log_with_exception = Log(
+        level="ERROR",
+        message="payment failed",
+        service_name="payment-service",
+        operation="charge",
+        error_type="AuthError",
+        source_file="/app/billing/charge.py",
+        source_line=42,
+        metadata_json={
+            "traceback": (
+                "Traceback (most recent call last):\n"
+                "  File \"/app/billing/charge.py\", line 42, in charge\n"
+                "    raise AuthError(token='sk-live-abcdef1234567890')\n"
+                "AuthError: invalid token"
+            )
+        },
+        created_at=datetime.now(timezone.utc),
+    )
+    metrics = {
+        "total_logs": 1,
+        "error_logs": 1,
+        "top_error_type": "AuthError",
+        "top_service": "payment-service",
+        "error_groups": [],
+        "target_error_group": None,
+        "contributing_error_groups": [],
+    }
+
+    prompt = _build_llm_prompt(project_id, 60, metrics, [log_with_exception])
+
+    assert "/app/billing/charge.py" in prompt
+    assert '"source_line": 42' in prompt
+    assert "raise AuthError" in prompt
+    assert "sk-live-abcdef1234567890" not in prompt
+
+
 def test_build_timeline_returns_newest_logs_oldest_first():
     # recent_logs is ordered created_at DESC (index 0 = newest).
     logs = [_make_log(seconds_ago) for seconds_ago in range(25)]

@@ -37,6 +37,7 @@ class Settings(BaseSettings):
     llm_timeout_seconds: int = 20
     llm_max_logs: int = 25
     llm_max_chars_per_log: int = 400
+    llm_max_traceback_chars: int = 800
     llm_temperature: float = 0.1
     # Anthropic/Bedrock (Messages API) require max_tokens in every request, unlike
     # OpenAI-compatible/Ollama where it's optional - not exposed per-project, just a
