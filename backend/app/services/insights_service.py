@@ -27,6 +27,15 @@ from app.schemas.insight import (
 )
 
 
+class LlmAnalysisUnavailableError(RuntimeError):
+    """Raised by build_insights() whenever there is no genuine LLM-derived result -
+    LLM disabled, unreachable, or an unparseable/incomplete response. There is
+    deliberately no rule-based substitute: callers (routes) turn this into a clear
+    failure (503, or a distinct "LLM error" notification) instead of presenting
+    rule-based text as if it were an AI finding.
+    """
+
+
 @dataclass
 class LlmRuntimeConfig:
     enabled: bool
@@ -137,34 +146,31 @@ def build_insights(
     deep_analysis: bool = False,
     levels: list[str] | None = None,
 ) -> InsightsResponse:
+    """Compute a fresh LLM-driven analysis and persist it as this project's "latest"
+    snapshot. Raises LlmAnalysisUnavailableError - never returns a rule-based
+    substitute - when the LLM is disabled, unreachable, or returns something
+    unusable; callers must not fall back to fabricated content, and the previously
+    persisted snapshot is left untouched in that case (only a genuine success ever
+    reaches _save_latest_insight).
+    """
+    llm_config = resolve_llm_config(db, project_id)
+    if not llm_config.enabled:
+        raise LlmAnalysisUnavailableError("LLM analysis is disabled for this project")
+
     metrics, recent_logs = _collect_insight_inputs(
         db=db, project_id=project_id, lookback_minutes=lookback_minutes, levels=levels
     )
-    fallback = _build_rule_based_insights(project_id, lookback_minutes, metrics, recent_logs)
-    fallback.levels_filter = levels
-
-    llm_config = resolve_llm_config(db, project_id)
-
-    if not llm_config.enabled:
-        print("LLM analysis disabled, returning rule-based insights")
-        fallback.fallback_reason = "LLM analysis disabled"
-        _save_latest_insight(db, project_id, fallback)
-        return fallback
 
     llm_response = _generate_llm_analysis(
         project_id,
         lookback_minutes,
         metrics,
         recent_logs,
-        fallback=fallback,
         deep_analysis=deep_analysis,
         llm_config=llm_config,
     )
     if llm_response is None:
-        print("LLM analysis failed or returned invalid response, falling back to rule-based insights")
-        fallback.fallback_reason = "LLM analysis unavailable or response invalid"
-        _save_latest_insight(db, project_id, fallback)
-        return fallback
+        raise LlmAnalysisUnavailableError("LLM analysis unavailable or response invalid")
 
     llm_response.levels_filter = levels
     _save_latest_insight(db, project_id, llm_response)
@@ -350,68 +356,6 @@ def _infer_contributing_error_groups(
     ]
 
 
-def _build_rule_based_insights(
-    project_id: uuid.UUID,
-    lookback_minutes: int,
-    metrics: dict[str, Any],
-    recent_logs: list[Log],
-) -> InsightsResponse:
-    total_logs = metrics["total_logs"]
-    error_logs = metrics["error_logs"]
-    err_type_value = metrics["top_error_type"]
-    service_value = metrics["top_service"]
-
-    if error_logs == 0:
-        root_cause = "No critical error pattern detected in the selected time window."
-        suggestion = "Continue monitoring and increase lookback window if issue was earlier."
-        incident_summary = "No active incident pattern was detected from recent logs."
-        action_plan = [
-            "Continue monitoring the service health dashboard.",
-            "Increase the lookback window if the issue happened earlier.",
-        ]
-        confidence = 0.35
-    else:
-        root_cause = (
-            f"Primary issue appears to be '{err_type_value or 'UnhandledError'}'"
-            f" in service '{service_value or 'unknown-service'}'."
-        )
-        suggestion = (
-            "Validate upstream dependencies, inspect recent deployments, and add retry/backoff around failing operations."
-        )
-        incident_summary = (
-            f"Detected {error_logs} error log(s) out of {total_logs} total log(s) in the last {lookback_minutes} minutes. "
-            f"Most frequent service: {service_value or 'unknown-service'}. "
-            f"Most frequent error type: {err_type_value or 'UnhandledError'}."
-        )
-        action_plan = [
-            "Inspect the most recent deployment or configuration change.",
-            "Check upstream dependencies and network timeouts.",
-            "Add retries or circuit breaking around the failing operation.",
-        ]
-        confidence = min(0.9, 0.5 + (error_logs / max(total_logs, 1)) * 0.4)
-
-    return InsightsResponse(
-        project_id=str(project_id),
-        lookback_minutes=lookback_minutes,
-        total_logs=total_logs,
-        error_logs=error_logs,
-        top_error_type=err_type_value,
-        top_service=service_value,
-        root_cause=root_cause,
-        suggestion=suggestion,
-        confidence=round(confidence, 2),
-        incident_summary=incident_summary,
-        action_plan=action_plan,
-        error_groups=metrics.get("error_groups", []),
-        target_error_group=metrics.get("target_error_group"),
-        contributing_error_groups=metrics.get("contributing_error_groups", []),
-        timeline=_build_timeline(recent_logs),
-        analysis_mode="fallback",
-        model_name=None,
-        fallback_reason=None,
-    )
-
-
 def _build_timeline(logs: list[Log]) -> list[InsightTimelineEvent]:
     return [
         InsightTimelineEvent(
@@ -431,7 +375,6 @@ def _generate_llm_analysis(
     lookback_minutes: int,
     metrics: dict[str, Any],
     recent_logs: list[Log],
-    fallback: InsightsResponse,
     llm_config: LlmRuntimeConfig,
     deep_analysis: bool = False,
 ) -> InsightsResponse | None:
@@ -459,10 +402,6 @@ def _generate_llm_analysis(
         parsed = _parse_llm_json(content)
         print(f"LLM parsed content: {parsed}")
         if not parsed:
-            partial_target_group = _extract_partial_target_error_group(content)
-            if partial_target_group is not None:
-                print(f"LLM partial content recovered as target_error_group: {partial_target_group}")
-                return _merge_partial_llm_response(fallback, partial_target_group, model_name)
             return None
     except (requests.RequestException, ValueError, KeyError):
         return None
@@ -487,37 +426,6 @@ def _generate_llm_analysis(
         analysis_mode="llm",
         model_name=model_name,
         fallback_reason=None,
-    )
-
-
-def _merge_partial_llm_response(
-    fallback: InsightsResponse,
-    target_error_group: dict[str, str],
-    model_name: str,
-) -> InsightsResponse:
-    return InsightsResponse(
-        project_id=fallback.project_id,
-        lookback_minutes=fallback.lookback_minutes,
-        total_logs=fallback.total_logs,
-        error_logs=fallback.error_logs,
-        top_error_type=fallback.top_error_type,
-        top_service=fallback.top_service,
-        root_cause=fallback.root_cause,
-        suggestion=fallback.suggestion,
-        confidence=fallback.confidence,
-        incident_summary=fallback.incident_summary,
-        action_plan=fallback.action_plan,
-        error_groups=fallback.error_groups,
-        target_error_group=InsightErrorGroupRef(
-            service_name=target_error_group["service_name"],
-            error_type=target_error_group["error_type"],
-            operation=target_error_group["operation"],
-        ),
-        contributing_error_groups=fallback.contributing_error_groups,
-        timeline=fallback.timeline,
-        analysis_mode="fallback",
-        model_name=model_name,
-        fallback_reason="LLM returned partial target_error_group only; rule-based report was reused",
     )
 
 
@@ -939,36 +847,6 @@ def _unwrap_llm_payload(parsed: Any) -> Any:
             return nested
 
     return parsed
-
-
-def _extract_partial_target_error_group(content: str) -> dict[str, str] | None:
-    try:
-        parsed: Any = json.loads(_strip_code_fences(re.sub(r"<think>.*?</think>", "", content, flags=re.DOTALL).strip()))
-    except json.JSONDecodeError:
-        candidate = _extract_first_json_object(content)
-        if candidate is None:
-            return None
-        try:
-            parsed = json.loads(candidate)
-        except json.JSONDecodeError:
-            return None
-
-    parsed = _unwrap_llm_payload(parsed)
-    parsed = _normalize_llm_keys(parsed)
-    if not isinstance(parsed, dict):
-        return None
-
-    service_name = str(parsed.get("service_name", "")).strip()
-    error_type = str(parsed.get("error_type", "")).strip()
-    operation = str(parsed.get("operation", "")).strip()
-    if service_name and error_type and operation:
-        return {
-            "service_name": service_name,
-            "error_type": error_type,
-            "operation": operation,
-        }
-
-    return None
 
 
 def _normalize_llm_keys(parsed: Any) -> Any:

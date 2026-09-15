@@ -1,6 +1,8 @@
 import uuid
 from datetime import datetime, timedelta, timezone
 
+import pytest
+
 from app.core.config import settings
 from app.models.log import Log
 from app.schemas.insight import InsightsResponse
@@ -11,7 +13,6 @@ from app.services.insights_service import (
     _request_azure_openai,
     _build_llm_prompt,
     _build_timeline,
-    _merge_partial_llm_response,
     resolve_llm_config,
 )
 
@@ -207,7 +208,74 @@ def test_collect_insight_inputs_filters_by_level(monkeypatch):
     assert "upper(logs.level) IN" in captured_filters["whereclause"]
 
 
-def test_build_insights_echoes_levels_filter(monkeypatch):
+def _disabled_llm_config() -> insights_service.LlmRuntimeConfig:
+    return insights_service.LlmRuntimeConfig(
+        enabled=False,
+        provider="ollama",
+        base_url="",
+        model="",
+        api_key=None,
+        temperature=0.1,
+        timeout_seconds=10,
+        max_tokens=2048,
+    )
+
+
+def _enabled_llm_config() -> insights_service.LlmRuntimeConfig:
+    return insights_service.LlmRuntimeConfig(
+        enabled=True,
+        provider="ollama",
+        base_url="http://localhost:11434",
+        model="qwen3:4b-q4_K_M",
+        api_key=None,
+        temperature=0.1,
+        timeout_seconds=10,
+        max_tokens=2048,
+    )
+
+
+def test_build_insights_raises_when_llm_disabled(monkeypatch):
+    # No rule-based substitute - build_insights() must raise, not return 200-shaped
+    # content, and must never touch the persisted "latest insight" snapshot.
+    project_id = uuid.uuid4()
+    monkeypatch.setattr(insights_service, "resolve_llm_config", lambda db, project_id: _disabled_llm_config())
+    saved = []
+    monkeypatch.setattr(insights_service, "_save_latest_insight", lambda db, project_id, insights: saved.append(insights))
+
+    with pytest.raises(insights_service.LlmAnalysisUnavailableError):
+        insights_service.build_insights(db=None, project_id=project_id, lookback_minutes=60)
+
+    assert saved == []
+
+
+def test_build_insights_raises_when_llm_call_fails(monkeypatch):
+    project_id = uuid.uuid4()
+    fake_metrics = {
+        "total_logs": 2,
+        "error_logs": 1,
+        "top_error_type": "TimeoutError",
+        "top_service": "payment-service",
+        "error_groups": [],
+        "target_error_group": None,
+        "contributing_error_groups": [],
+    }
+    monkeypatch.setattr(
+        insights_service,
+        "_collect_insight_inputs",
+        lambda db, project_id, lookback_minutes, levels=None: (fake_metrics, []),
+    )
+    monkeypatch.setattr(insights_service, "resolve_llm_config", lambda db, project_id: _enabled_llm_config())
+    monkeypatch.setattr(insights_service, "_generate_llm_analysis", lambda *args, **kwargs: None)
+    saved = []
+    monkeypatch.setattr(insights_service, "_save_latest_insight", lambda db, project_id, insights: saved.append(insights))
+
+    with pytest.raises(insights_service.LlmAnalysisUnavailableError):
+        insights_service.build_insights(db=None, project_id=project_id, lookback_minutes=60)
+
+    assert saved == []
+
+
+def test_build_insights_echoes_levels_filter_on_success(monkeypatch):
     project_id = uuid.uuid4()
     fake_metrics = {
         "total_logs": 2,
@@ -218,26 +286,14 @@ def test_build_insights_echoes_levels_filter(monkeypatch):
         "target_error_group": None,
         "contributing_error_groups": [],
     }
-
     monkeypatch.setattr(
         insights_service,
         "_collect_insight_inputs",
         lambda db, project_id, lookback_minutes, levels=None: (fake_metrics, []),
     )
-    monkeypatch.setattr(
-        insights_service,
-        "resolve_llm_config",
-        lambda db, project_id: insights_service.LlmRuntimeConfig(
-            enabled=False,
-            provider="ollama",
-            base_url="",
-            model="",
-            api_key=None,
-            temperature=0.1,
-            timeout_seconds=10,
-            max_tokens=2048,
-        ),
-    )
+    monkeypatch.setattr(insights_service, "resolve_llm_config", lambda db, project_id: _enabled_llm_config())
+    llm_result = _make_sample_insight()
+    monkeypatch.setattr(insights_service, "_generate_llm_analysis", lambda *args, **kwargs: llm_result)
     monkeypatch.setattr(insights_service, "_save_latest_insight", lambda db, project_id, insights: None)
 
     result = insights_service.build_insights(
@@ -245,6 +301,7 @@ def test_build_insights_echoes_levels_filter(monkeypatch):
     )
 
     assert result.levels_filter == ["WARN", "ERROR"]
+    assert result.analysis_mode == "llm"
 
 
 class _FakeLatestInsightDb:
@@ -269,28 +326,28 @@ class _FakeLatestInsightDb:
 def test_save_and_get_latest_insight_round_trips():
     project_id = uuid.uuid4()
     db = _FakeLatestInsightDb()
-    fallback = _make_fallback()
-    fallback.levels_filter = ["ERROR"]
+    insight = _make_sample_insight()
+    insight.levels_filter = ["ERROR"]
 
-    insights_service._save_latest_insight(db, project_id, fallback)
+    insights_service._save_latest_insight(db, project_id, insight)
 
     assert db.committed is True
-    assert fallback.computed_at is not None  # stamped by _save_latest_insight
+    assert insight.computed_at is not None  # stamped by _save_latest_insight
 
     result = insights_service.get_latest_insight(db, project_id)
 
     assert result.has_analysis is True
-    assert result.insight.root_cause == fallback.root_cause
+    assert result.insight.root_cause == insight.root_cause
     assert result.insight.levels_filter == ["ERROR"]
-    assert result.insight.computed_at == fallback.computed_at
+    assert result.insight.computed_at == insight.computed_at
 
 
 def test_save_latest_insight_overwrites_existing_row_not_duplicates():
     project_id = uuid.uuid4()
     db = _FakeLatestInsightDb()
 
-    insights_service._save_latest_insight(db, project_id, _make_fallback())
-    insights_service._save_latest_insight(db, project_id, _make_fallback())
+    insights_service._save_latest_insight(db, project_id, _make_sample_insight())
+    insights_service._save_latest_insight(db, project_id, _make_sample_insight())
 
     assert len(db.rows) == 1
 
@@ -377,7 +434,7 @@ def test_build_timeline_returns_newest_logs_oldest_first():
     assert timeline[-1].message == "log from 0s ago"
 
 
-def _make_fallback() -> InsightsResponse:
+def _make_sample_insight() -> InsightsResponse:
     return InsightsResponse(
         project_id=str(uuid.uuid4()),
         lookback_minutes=60,
@@ -390,26 +447,7 @@ def _make_fallback() -> InsightsResponse:
         confidence=0.61,
         incident_summary="Detected one timeout incident.",
         action_plan=["Inspect upstream service"],
-        analysis_mode="fallback",
-        model_name=None,
+        analysis_mode="llm",
+        model_name="qwen3:4b-q4_K_M",
         fallback_reason=None,
     )
-
-
-def test_merge_partial_llm_response_reports_fallback_mode():
-    fallback = _make_fallback()
-    target_error_group = {
-        "service_name": "payment-service",
-        "error_type": "TimeoutError",
-        "operation": "charge",
-    }
-
-    result = _merge_partial_llm_response(fallback, target_error_group, model_name="qwen3:4b-q4_K_M")
-
-    # All narrative content is reused verbatim from the rule-based fallback, so
-    # analysis_mode must say "fallback", not "llm" - see fallback_reason for detail.
-    assert result.analysis_mode == "fallback"
-    assert result.root_cause == fallback.root_cause
-    assert result.suggestion == fallback.suggestion
-    assert result.target_error_group.service_name == "payment-service"
-    assert "target_error_group only" in result.fallback_reason

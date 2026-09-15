@@ -812,9 +812,16 @@ function updateIntegrationProviderUI(provider) {
 async function loadOverview() {
   if (!getKey()) { showAlert('home-alert', 'Enter your API key in the sidebar.', 'info'); return; }
   hideAlert('home-alert');
-  var r = await apiFetch('/api/v1/insights?lookback_minutes=60');
+  // Reads the persisted "latest analysis" snapshot only - never triggers a fresh
+  // (possibly LLM-unavailable) computation just to render this page. Matches the
+  // React Overview page's behavior; run a new analysis from the AI Insights tab.
+  var r = await apiFetch('/api/v1/insights/latest');
   if (!r.ok) { showAlert('home-alert', r.body.detail || 'Failed to load insights.', 'error'); return; }
-  var body = r.body;
+  if (!r.body.has_analysis || !r.body.insight) {
+    showAlert('home-alert', 'No AI analysis yet - run one from the AI Insights tab.', 'info');
+    return;
+  }
+  var body = r.body.insight;
   document.getElementById('ov-total').textContent   = body.total_logs != null ? body.total_logs : '&mdash;';
   document.getElementById('ov-errors').textContent  = body.error_logs != null ? body.error_logs : '&mdash;';
   document.getElementById('ov-service').textContent = body.top_service || '&mdash;';

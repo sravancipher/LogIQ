@@ -4,7 +4,23 @@ from datetime import datetime, timezone
 from app.schemas.insight import InsightsResponse, LatestInsightResponse
 
 
-def test_insights_endpoint_falls_back_when_llm_disabled(client, monkeypatch):
+def test_insights_endpoint_returns_503_when_llm_unavailable(client, monkeypatch):
+    from app.api.v1.routes import insights as insights_route
+    from app.services.insights_service import LlmAnalysisUnavailableError
+
+    def _raise(db, project_id, lookback_minutes, deep_analysis=False, levels=None):
+        raise LlmAnalysisUnavailableError("LLM analysis is disabled for this project")
+
+    monkeypatch.setattr(insights_route, "build_insights", _raise)
+
+    response = client.get("/api/v1/insights?lookback_minutes=60")
+
+    # No rule-based substitute - a real failure, not a 200 with fabricated content.
+    assert response.status_code == 503
+    assert response.json()["detail"] == "LLM analysis is disabled for this project"
+
+
+def test_insights_endpoint_returns_llm_analysis_on_success(client, monkeypatch):
     from app.api.v1.routes import insights as insights_route
 
     monkeypatch.setattr(
@@ -23,9 +39,9 @@ def test_insights_endpoint_falls_back_when_llm_disabled(client, monkeypatch):
             incident_summary="Detected one timeout incident.",
             action_plan=["Inspect upstream service", "Review deployment", "Add retries"],
             timeline=[],
-            analysis_mode="fallback",
-            model_name=None,
-            fallback_reason="LLM analysis disabled",
+            analysis_mode="llm",
+            model_name="qwen3:4b-q4_K_M",
+            fallback_reason=None,
         ),
     )
 
@@ -33,7 +49,7 @@ def test_insights_endpoint_falls_back_when_llm_disabled(client, monkeypatch):
 
     assert response.status_code == 200
     body = response.json()
-    assert body["analysis_mode"] == "fallback"
+    assert body["analysis_mode"] == "llm"
     assert body["incident_summary"] == "Detected one timeout incident."
     assert len(body["action_plan"]) == 3
 

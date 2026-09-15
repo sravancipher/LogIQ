@@ -219,3 +219,38 @@ def send_insight_notification(
         analysis_mode=insights.analysis_mode,
         message="Insight notification sent" if any_sent else "Failed to send insight notification",
     )
+
+
+def send_llm_error_notification(
+    reason: str, payload: InsightNotifyRequest, config: AlertChannelConfig
+) -> InsightNotifyResponse:
+    """Sent instead of send_insight_notification() when build_insights() couldn't
+    produce a genuine LLM-derived analysis (LlmAnalysisUnavailableError). Notifies
+    the requested channels that AI analysis failed, rather than delivering
+    rule-based text as if it were an AI finding.
+    """
+    message = f"AI Insights could not analyze this project: {reason}.\nCheck LLM Settings and try again."
+
+    send_payload = AlertTestRequest(
+        title="[AI Insights] LLM analysis unavailable",
+        message=message,
+        severity=payload.severity,
+        recipient_email=payload.recipient_email,
+    )
+
+    teams_config = replace(config, teams_webhook_url=payload.teams_webhook_url) if payload.teams_webhook_url else config
+
+    email_sent = "email" in payload.channels and send_email_alert(send_payload, config)
+    slack_sent = "slack" in payload.channels and send_slack_alert(send_payload, config)
+    teams_sent = "teams" in payload.channels and send_teams_alert(send_payload, teams_config)
+    any_sent = email_sent or slack_sent or teams_sent
+
+    return InsightNotifyResponse(
+        email=email_sent,
+        slack=slack_sent,
+        teams=teams_sent,
+        recipient_email=payload.recipient_email,
+        target_error_group=_group_label(None),
+        analysis_mode="llm_error",
+        message="LLM error notification sent" if any_sent else "Failed to send LLM error notification",
+    )

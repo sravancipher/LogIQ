@@ -7,6 +7,7 @@ from app.services.alert_service import (
     _escape_slack_text,
     _escape_teams_text,
     send_insight_notification,
+    send_llm_error_notification,
     send_slack_alert,
     send_teams_alert,
 )
@@ -163,8 +164,8 @@ def _make_insights(**overrides) -> InsightsResponse:
         confidence=0.7,
         incident_summary="Detected 2 error log(s).",
         action_plan=["Inspect upstream service"],
-        analysis_mode="fallback",
-        model_name=None,
+        analysis_mode="llm",
+        model_name="qwen3:4b-q4_K_M",
         fallback_reason=None,
     )
     defaults.update(overrides)
@@ -279,3 +280,51 @@ def test_send_insight_notification_email_only_does_not_touch_webhooks(monkeypatc
     assert result.slack is False
     assert result.teams is False
     assert calls["webhook"] == 0
+
+
+def test_send_llm_error_notification_only_hits_selected_channels(monkeypatch):
+    posted_urls = []
+
+    class _Resp:
+        status_code = 200
+
+    def fake_post(url, json, timeout):
+        posted_urls.append(url)
+        return _Resp()
+
+    monkeypatch.setattr("app.services.alert_service.requests.post", fake_post)
+
+    config = resolve_alert_config(_FakeScalarDb(row=None), uuid.uuid4())
+    config.slack_webhook_url = "https://hooks.slack.com/services/test"
+    config.teams_webhook_url = "https://example.webhook.office.com/webhookb2/test"
+    # No SMTP config, so email would fail even if selected - but it isn't selected here.
+
+    payload = InsightNotifyRequest(channels=["slack", "teams"])
+    result = send_llm_error_notification("LLM analysis is disabled for this project", payload, config)
+
+    assert result.slack is True
+    assert result.teams is True
+    assert result.email is False
+    assert result.analysis_mode == "llm_error"
+    assert posted_urls == [config.slack_webhook_url, config.teams_webhook_url]
+
+
+def test_send_llm_error_notification_message_includes_reason(monkeypatch):
+    captured = {}
+
+    class _Resp:
+        status_code = 200
+
+    def fake_post(url, json, timeout):
+        captured["json"] = json
+        return _Resp()
+
+    monkeypatch.setattr("app.services.alert_service.requests.post", fake_post)
+
+    config = resolve_alert_config(_FakeScalarDb(row=None), uuid.uuid4())
+    config.slack_webhook_url = "https://hooks.slack.com/services/test"
+
+    payload = InsightNotifyRequest(channels=["slack"])
+    send_llm_error_notification("LLM analysis unavailable or response invalid", payload, config)
+
+    assert "LLM analysis unavailable or response invalid" in captured["json"]["text"]

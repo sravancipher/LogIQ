@@ -4,9 +4,9 @@ from sqlalchemy.orm import Session
 from app.core.security import AuthContext, require_api_key
 from app.db.session import get_db
 from app.schemas.alert import AlertTestRequest, AlertTestResponse, InsightNotifyRequest, InsightNotifyResponse
-from app.services.alert_service import send_insight_notification, send_test_alert
+from app.services.alert_service import send_insight_notification, send_llm_error_notification, send_test_alert
 from app.services.alert_settings_service import resolve_alert_config
-from app.services.insights_service import build_insights
+from app.services.insights_service import LlmAnalysisUnavailableError, build_insights
 
 router = APIRouter(prefix="/alerts", tags=["alerts"])
 
@@ -27,11 +27,14 @@ def notify_from_insights(
     auth: AuthContext = Depends(require_api_key),
     db: Session = Depends(get_db),
 ) -> InsightNotifyResponse:
-    insights = build_insights(
-        db=db,
-        project_id=auth.project_id,
-        lookback_minutes=payload.lookback_minutes,
-        deep_analysis=payload.deep_analysis,
-    )
     config = resolve_alert_config(db, auth.project_id)
+    try:
+        insights = build_insights(
+            db=db,
+            project_id=auth.project_id,
+            lookback_minutes=payload.lookback_minutes,
+            deep_analysis=payload.deep_analysis,
+        )
+    except LlmAnalysisUnavailableError as exc:
+        return send_llm_error_notification(str(exc), payload, config)
     return send_insight_notification(insights, payload, config)

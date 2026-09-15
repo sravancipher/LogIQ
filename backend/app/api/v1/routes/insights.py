@@ -1,11 +1,11 @@
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.core.security import AuthContext, require_api_key
 from app.db.session import get_db
 from app.models.insight_feedback import InsightFeedback
 from app.schemas.insight import InsightFeedbackCreate, InsightFeedbackResponse, InsightsResponse, LatestInsightResponse
-from app.services.insights_service import build_insights, get_latest_insight
+from app.services.insights_service import LlmAnalysisUnavailableError, build_insights, get_latest_insight
 
 router = APIRouter(prefix="/insights", tags=["insights"])
 
@@ -18,13 +18,19 @@ def get_insights(
     auth: AuthContext = Depends(require_api_key),
     db: Session = Depends(get_db),
 ) -> InsightsResponse:
-    return build_insights(
-        db=db,
-        project_id=auth.project_id,
-        lookback_minutes=lookback_minutes,
-        deep_analysis=deep_analysis,
-        levels=levels,
-    )
+    try:
+        return build_insights(
+            db=db,
+            project_id=auth.project_id,
+            lookback_minutes=lookback_minutes,
+            deep_analysis=deep_analysis,
+            levels=levels,
+        )
+    except LlmAnalysisUnavailableError as exc:
+        # No rule-based substitute is returned - see build_insights(). The project's
+        # previously-saved "latest insight" snapshot (GET /insights/latest) is left
+        # untouched by this failure.
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
 
 
 @router.get("/latest", response_model=LatestInsightResponse)
