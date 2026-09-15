@@ -7,6 +7,7 @@ from app.api.v1.routes.insights import router as insights_router
 from app.api.v1.routes.integrations import router as integrations_router
 from app.api.v1.routes.llm_settings import router as llm_settings_router
 from app.api.v1.routes.logs import router as logs_router
+from app.api.v1.routes.maintenance import router as maintenance_router
 from app.api.v1.routes.projects import router as projects_router
 from app.api.v1.routes.services import router as services_router
 
@@ -20,3 +21,4 @@ api_router.include_router(services_router)
 api_router.include_router(llm_settings_router)
 api_router.include_router(alert_settings_router)
 api_router.include_router(chat_router)
+api_router.include_router(maintenance_router)

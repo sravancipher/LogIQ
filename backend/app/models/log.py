@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from typing import Any, Optional
 
-from sqlalchemy import DateTime, ForeignKey, Index, JSON, String, Text, func
+from sqlalchemy import DateTime, ForeignKey, Index, JSON, PrimaryKeyConstraint, String, Text, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -11,8 +11,16 @@ from app.db.base import Base
 
 class Log(Base):
     __tablename__ = "logs"
+    # created_at is part of the PK (not just id) because logs is a native Postgres
+    # RANGE-partitioned-by-day table (see migration 20260915_0012) - Postgres requires
+    # every unique constraint on a partitioned table to include the partition key.
+    __table_args__ = (
+        PrimaryKeyConstraint("id", "created_at"),
+        Index("idx_logs_project_created", "project_id", "created_at"),
+        {"postgresql_partition_by": "RANGE (created_at)"},
+    )
 
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(autoincrement=True)
     project_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
 
     service_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)

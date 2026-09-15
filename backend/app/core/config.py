@@ -13,6 +13,11 @@ class Settings(BaseSettings):
     health_check_interval_seconds: int = 60
     health_check_lookback_minutes: int = 15
 
+    log_retention_days: int = 7
+    partition_lookahead_days: int = 3
+    partition_maintenance_enabled: bool = True
+    partition_maintenance_interval_seconds: int = 86400
+
     cors_origins: str = "https://logiq.thetechvoyager.in,http://localhost:8001"
 
     slack_webhook_url: str | None = None
